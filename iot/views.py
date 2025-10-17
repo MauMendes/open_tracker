@@ -975,10 +975,19 @@ def export_historical_data_csv(table_data, table_columns, start_date, end_date):
 @login_required
 def historical_data(request):
     """View for analyzing historical sensor data with date/time filtering"""
-    
+
     # Get all devices for the filter dropdown
     devices = Device.objects.all().order_by('name')
-    
+
+    # Get per_page parameter
+    per_page = request.GET.get('per_page') or request.POST.get('per_page', '20')
+    try:
+        per_page = int(per_page)
+        if per_page not in [10, 20, 50, 100]:
+            per_page = 20
+    except (ValueError, TypeError):
+        per_page = 20
+
     # Initialize context
     context = {
         'devices': devices,
@@ -988,6 +997,7 @@ def historical_data(request):
         'start_date': None,
         'end_date': None,
         'data_type_filter': None,
+        'per_page': per_page,
     }
     
     if request.method == 'POST':
@@ -1107,10 +1117,17 @@ def historical_data(request):
             for data_type in sorted(all_data_types):
                 if data_type not in table_columns:
                     table_columns.append(data_type)
-            
+
+            # Add pagination to table_data
+            paginator = Paginator(table_data, per_page)
+            page_number = request.GET.get('page', request.POST.get('page', 1))
+            page_obj = paginator.get_page(page_number)
+
             context['data_entries'] = data_entries  # Keep original for count
-            context['table_data'] = table_data
+            context['table_data'] = page_obj  # Paginated data
             context['table_columns'] = table_columns
+            context['page_obj'] = page_obj
+            context['total_rows'] = len(table_data)
             
             # Calculate statistics if we have data
             if data_entries:
