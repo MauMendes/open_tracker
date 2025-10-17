@@ -80,7 +80,49 @@
         </form>
     </div>
 
+    <!-- Data Visualization Section -->
+    {% if table_data %}
+    <div class="visualization-section">
+        <div class="section-header">
+            <h3>📈 Data Visualization</h3>
+        </div>
 
+        <div class="chart-container">
+            <canvas id="dataChart"></canvas>
+        </div>
+
+        <div class="chart-info">
+            <p id="chartMessage">Chart will appear here after analyzing data</p>
+        </div>
+
+        <div class="chart-controls">
+            <label for="chartPointsLimit" style="font-weight: 500; color: #374151;">Show last:</label>
+            <select id="chartPointsLimit" onchange="updateChart()" style="padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 6px; margin-left: 8px;">
+                <option value="20">20 time points</option>
+                <option value="50">50 time points</option>
+                <option value="100" selected>100 time points</option>
+                <option value="500">500 time points</option>
+                <option value="0">All time points</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Embed full dataset for chart (not just paginated table data) -->
+    <script id="chartDataSource" type="application/json">
+    [
+        {% for row in data_entries %}
+        {
+            "timestamp": "{{ row.timestamp|date:'d/m/y H:i:s' }}",
+            "deviceName": "{{ row.device.name|escapejs }}",
+            "deviceType": "{{ row.device.device_type }}",
+            "dataType": "{{ row.data_type|escapejs }}",
+            "value": {% if row.value is None %}null{% else %}{{ row.value }}{% endif %},
+            "unit": "{{ row.unit|escapejs }}"
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ]
+    </script>
+    {% endif %}
 
     <!-- Dynamic Table View -->
     {% if table_data %}
@@ -235,7 +277,7 @@
     font-size: 1.1rem;
 }
 
-.filter-section, .statistics-section, .data-section {
+.filter-section, .statistics-section, .data-section, .visualization-section {
     background: white;
     border-radius: 16px;
     padding: 32px;
@@ -244,12 +286,12 @@
 }
 
 .section-header {
-    margin-bottom: 24px;
+    margin-bottom: 20px;
 }
 
 .section-header h3 {
     color: #1f2937;
-    margin-bottom: 8px;
+    margin-bottom: 0;
     font-size: 1.25rem;
     font-weight: 600;
 }
@@ -257,6 +299,17 @@
 .section-header p {
     color: #6b7280;
     margin: 0;
+}
+
+.chart-controls {
+    margin-top: 16px;
+    margin-bottom: 12px;
+    padding: 12px;
+    background: #f9fafb;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .filter-grid {
@@ -667,6 +720,27 @@
     border: 1px solid #fecaca;
 }
 
+/* Chart visualization styles */
+.chart-container {
+    position: relative;
+    height: 400px;
+    margin-bottom: 16px;
+}
+
+.chart-info {
+    text-align: center;
+    color: #6b7280;
+    font-size: 14px;
+    padding: 12px;
+    background: #f9fafb;
+    border-radius: 8px;
+    margin-top: 12px;
+}
+
+.chart-info p {
+    margin: 0;
+}
+
 /* Pagination styles */
 .pagination-container {
     display: flex;
@@ -785,6 +859,7 @@
 }
 </style>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 function resetFilters() {
     const now = new Date();
@@ -798,35 +873,6 @@ function resetFilters() {
     document.getElementById('end_date').value = `${year}-${month}-${day}T23:59`;
     document.getElementById('data_type_filter').value = '';
 }
-
-// Set default dates when page loads
-document.addEventListener('DOMContentLoaded', function() {
-    const startDate = document.getElementById('start_date');
-    const endDate = document.getElementById('end_date');
-    
-    // Set default dates for today if no values are set (first time visiting page)
-    if (!startDate.value && !endDate.value) {
-        const now = new Date();
-        
-        // Get current date components
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        
-        // Format for datetime-local input (YYYY-MM-DDTHH:mm)
-        const startDateTime = `${year}-${month}-${day}T00:00`;
-        const endDateTime = `${year}-${month}-${day}T23:59`;
-        
-        startDate.value = startDateTime;
-        endDate.value = endDateTime;
-        
-        console.log('Default dates set (DD/MM/YYYY):', `${day}/${month}/${year}`, 'to', `${day}/${month}/${year}`);
-    }
-    
-    // Add helpful tooltips for date format
-    startDate.title = 'Select date and time in DD/MM/YYYY HH:MM format';
-    endDate.title = 'Select date and time in DD/MM/YYYY HH:MM format';
-});
 
 function exportToExcel() {
     // Get current filter values
@@ -937,5 +983,548 @@ function updatePagination(perPageValue) {
     document.body.appendChild(navForm);
     navForm.submit();
 }
+
+// Chart visualization functions
+let dataChart = null;
+
+function updateChart() {
+    createChart();
+}
+
+function createChart() {
+    const canvas = document.getElementById('dataChart');
+    console.log('createChart called, canvas:', canvas);
+
+    if (!canvas) {
+        console.log('Canvas not found');
+        return;
+    }
+
+    const ctx = canvas.getContext('2d');
+
+    // Prepare data from the table
+    const chartData = prepareChartData();
+    console.log('Chart data prepared:', chartData);
+
+    if (!chartData || chartData.datasets.length === 0) {
+        const msg = 'No chartable data found. Ensure you have numeric data (temperature, speed, humidity, etc.) in the table.';
+        document.getElementById('chartMessage').textContent = msg;
+        console.log(msg);
+        return;
+    }
+
+    // Destroy existing chart if any
+    if (dataChart) {
+        dataChart.destroy();
+    }
+
+    console.log('Chart Y-axis config:', {
+        label: chartData.yAxisLabel,
+        min: chartData.yAxisMin,
+        max: chartData.yAxisMax
+    });
+
+    // Create new chart
+    dataChart = new Chart(ctx, {
+        type: 'line',
+        data: chartData,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        padding: 15,
+                        font: {
+                            size: 13,
+                            weight: '500'
+                        },
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                        boxWidth: 8,
+                        boxHeight: 8
+                    },
+                    onClick: function(e, legendItem, legend) {
+                        const index = legendItem.datasetIndex;
+                        const chart = legend.chart;
+                        const meta = chart.getDatasetMeta(index);
+
+                        // Toggle visibility
+                        meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
+                        chart.update();
+                    }
+                },
+                title: {
+                    display: true,
+                    text: chartData.title || 'Data Over Time',
+                    font: {
+                        size: 16,
+                        weight: 'bold'
+                    }
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed.y !== null) {
+                                const dataType = context.dataset.label.toLowerCase();
+                                const isOnOff = context.dataset.isOnOff;
+
+                                // For ON/OFF signals, show ON/OFF instead of numeric value
+                                if (isOnOff) {
+                                    // If normalized, check against the normalized range
+                                    const normalizedRange = chartData.normalizedRange;
+                                    if (chartData.needsNormalization && normalizedRange) {
+                                        const midPoint = (normalizedRange.min + normalizedRange.max) / 2;
+                                        label += context.parsed.y > midPoint ? 'ON' : 'OFF';
+                                    } else {
+                                        // Not normalized, simple 0/1 check
+                                        label += context.parsed.y > 0.5 ? 'ON' : 'OFF';
+                                    }
+                                } else {
+                                    // Numeric signal - show value with appropriate unit
+                                    const value = context.parsed.y;
+                                    label += value.toFixed(2);
+
+                                    // Add unit based on data type
+                                    if (dataType.includes('speed')) {
+                                        label += ' km/h';
+                                    } else if (dataType.includes('temperature')) {
+                                        label += ' °C';
+                                    } else if (dataType.includes('humidity')) {
+                                        label += ' %';
+                                    }
+                                }
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    display: true,
+                    title: {
+                        display: true,
+                        text: 'Time'
+                    },
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45,
+                        maxTicksLimit: 12,
+                        callback: function(value, index, ticks) {
+                            // Get the label (timestamp)
+                            const label = this.getLabelForValue(value);
+                            // Extract just the time part (HH:MM:SS)
+                            if (label && label.includes(' ')) {
+                                return label.split(' ')[1]; // Return only time part
+                            }
+                            return label;
+                        }
+                    }
+                },
+                y: {
+                    display: true,
+                    title: {
+                        display: true,
+                        text: chartData.yAxisLabel || 'Value'
+                    },
+                    beginAtZero: chartData.yAxisMin !== undefined ? chartData.yAxisMin === 0 : true,
+                    ticks: {
+                        callback: function(value, index, ticks) {
+                            // For pure ON/OFF signals (not normalized), show ON/OFF labels
+                            if (chartData.hasOnOff && !chartData.hasNumeric) {
+                                if (value === 1) return 'ON';
+                                if (value === 0) return 'OFF';
+                                return '';
+                            }
+                            // For mixed or numeric signals, show numeric values
+                            return value.toFixed(1);
+                        },
+                        stepSize: (chartData.hasOnOff && !chartData.hasNumeric) ? 1 : undefined
+                    },
+                    min: chartData.yAxisMin,
+                    max: chartData.yAxisMax,
+                    grace: chartData.yAxisMin !== undefined ? 0 : '5%'  // No padding if explicit range set
+                }
+            },
+            interaction: {
+                mode: 'nearest',
+                axis: 'x',
+                intersect: false
+            }
+        }
+    });
+
+    let chartInfo = `Showing ${chartData.datasets.length} data series with ${chartData.labels.length} time points`;
+    if (chartData.needsNormalization) {
+        chartInfo += `<br><small style="color: #9ca3af;">ℹ️ ON/OFF signals are normalized to match numeric data range</small>`;
+    }
+    chartInfo += `<br><small style="color: #9ca3af;">💡 Tip: Click legend items to hide/show signals</small>`;
+    document.getElementById('chartMessage').innerHTML = chartInfo;
+}
+
+function prepareChartData() {
+    // Get the point limit from dropdown
+    const pointLimit = parseInt(document.getElementById('chartPointsLimit')?.value || '100');
+    console.log('Point limit selected:', pointLimit);
+
+    // Get full dataset from embedded JSON
+    const dataSourceElement = document.getElementById('chartDataSource');
+    if (!dataSourceElement) {
+        console.log('Chart data source not found');
+        return null;
+    }
+
+    let dataPoints = [];
+    try {
+        dataPoints = JSON.parse(dataSourceElement.textContent);
+    } catch (e) {
+        console.error('Failed to parse chart data:', e);
+        return null;
+    }
+
+    if (dataPoints.length === 0) {
+        return null;
+    }
+
+    console.log('Total data points from server:', dataPoints.length);
+
+    // Filter out invalid data points (but keep 0 values for things like ignition)
+    dataPoints = dataPoints.filter(point => {
+        return point.value !== null && point.value !== '' && !isNaN(parseFloat(point.value));
+    });
+
+    console.log('After filtering invalid:', dataPoints.length);
+
+    if (dataPoints.length === 0) {
+        return null;
+    }
+
+    // Sort by timestamp to ensure chronological order (oldest to newest)
+    dataPoints.sort((a, b) => {
+        // Parse DD/MM/YY HH:MM:SS format for sorting
+        const parseTimestamp = (ts) => {
+            const [datePart, timePart] = ts.split(' ');
+            const [day, month, year] = datePart.split('/');
+            const fullYear = year.length === 2 ? '20' + year : year;
+            return new Date(`${fullYear}-${month}-${day}T${timePart}`).getTime();
+        };
+        return parseTimestamp(a.timestamp) - parseTimestamp(b.timestamp);
+    });
+
+    console.log('Data range: from', dataPoints[0].timestamp, 'to', dataPoints[dataPoints.length - 1].timestamp);
+
+    // Get unique timestamps in chronological order
+    const uniqueTimestamps = [...new Set(dataPoints.map(p => p.timestamp))];
+    console.log('Total unique timestamps:', uniqueTimestamps.length);
+
+    // Apply point limit: take LAST N timestamps (most recent data)
+    let selectedTimestamps = uniqueTimestamps;
+    if (pointLimit > 0 && uniqueTimestamps.length > pointLimit) {
+        selectedTimestamps = uniqueTimestamps.slice(-pointLimit);
+        console.log('Taking LAST', pointLimit, 'time points from', selectedTimestamps[0], 'to', selectedTimestamps[selectedTimestamps.length - 1]);
+    } else {
+        console.log('Showing all', uniqueTimestamps.length, 'time points');
+    }
+
+    // Keep only data points that match the selected timestamps
+    const limitedDataPoints = dataPoints.filter(p => selectedTimestamps.includes(p.timestamp));
+    console.log('Showing:', selectedTimestamps.length, 'time points with', limitedDataPoints.length, 'total sensor readings');
+
+    // Group by device and data type
+    const seriesMap = {};
+
+    limitedDataPoints.forEach(point => {
+        const seriesKey = `${point.deviceName} - ${point.dataType}`;
+        if (!seriesMap[seriesKey]) {
+            seriesMap[seriesKey] = {
+                label: seriesKey,
+                data: [],
+                deviceType: point.deviceType,
+                dataType: point.dataType,
+                rawData: []  // Store original values for ignition
+            };
+        }
+
+        // Parse value as number
+        let numValue = parseFloat(point.value);
+
+        // For ignition and other ON/OFF signals, normalize to 0 or 1
+        const isOnOffSignal = point.dataType.toLowerCase() === 'ignition' ||
+                             point.dataType.toLowerCase().includes('status') ||
+                             point.dataType.toLowerCase().includes('state');
+
+        if (isOnOffSignal) {
+            const originalValue = numValue;
+            numValue = numValue > 0 ? 1 : 0;
+            seriesMap[seriesKey].rawData.push(numValue);  // Store 0 or 1
+
+            // Debug logging for first few points
+            if (seriesMap[seriesKey].data.length < 5) {
+                console.log(`${point.dataType} raw: ${originalValue} -> normalized: ${numValue}`);
+            }
+        }
+
+        seriesMap[seriesKey].data.push({
+            x: point.timestamp,
+            y: numValue,
+            isOnOff: isOnOffSignal,
+            rawValue: isOnOffSignal ? numValue : undefined  // Store original 0/1
+        });
+    });
+
+    // Get unique timestamps for chart labels
+    const allTimestamps = limitedDataPoints.map(p => p.timestamp);
+    const labels = [...new Set(allTimestamps)];
+
+    // Identify signal types
+    const onOffSeries = Object.values(seriesMap).filter(s =>
+        s.dataType.toLowerCase() === 'ignition' ||
+        s.dataType.toLowerCase().includes('status') ||
+        s.dataType.toLowerCase().includes('state')
+    );
+    const numericSeries = Object.values(seriesMap).filter(s =>
+        s.dataType.toLowerCase() !== 'ignition' &&
+        !s.dataType.toLowerCase().includes('status') &&
+        !s.dataType.toLowerCase().includes('state')
+    );
+
+    const hasOnOff = onOffSeries.length > 0;
+    const hasNumeric = numericSeries.length > 0;
+    const needsNormalization = hasOnOff && hasNumeric;
+
+    console.log(`Chart has ${onOffSeries.length} ON/OFF signals and ${numericSeries.length} numeric signals`);
+
+    // Calculate Y-axis range from numeric data
+    let yMin = 0;
+    let yMax = 100;
+
+    if (hasNumeric) {
+        const numericValues = [];
+        numericSeries.forEach(series => {
+            series.data.forEach(d => numericValues.push(d.y));
+        });
+
+        if (numericValues.length > 0) {
+            yMin = Math.min(...numericValues);
+            yMax = Math.max(...numericValues);
+
+            // Add 5% padding for better visualization
+            const range = yMax - yMin;
+            if (range > 0) {
+                yMin = yMin - range * 0.05;
+                yMax = yMax + range * 0.05;
+            }
+        }
+    } else if (hasOnOff) {
+        // Only ON/OFF signals, use 0-1 range
+        yMin = 0;
+        yMax = 1;
+    }
+
+    console.log(`Y-axis range: ${yMin} to ${yMax}`);
+
+    if (needsNormalization) {
+        console.log(`Normalizing ON/OFF signals: OFF -> ${yMin}, ON -> ${yMax}`);
+
+        // Count ON/OFF occurrences for debugging
+        onOffSeries.forEach(series => {
+            const offCount = series.data.filter(d => d.y === 0).length;
+            const onCount = series.data.filter(d => d.y === 1).length;
+            console.log(`${series.label}: ${offCount} OFF, ${onCount} ON`);
+        });
+    }
+
+    // Define a color palette for different series
+    const colorPalette = [
+        '#dc2626', // Red
+        '#2563eb', // Blue
+        '#059669', // Green
+        '#d97706', // Orange
+        '#7c3aed', // Purple
+        '#db2777', // Pink
+        '#0891b2', // Cyan
+        '#65a30d', // Lime
+        '#c026d3', // Magenta
+        '#ea580c', // Deep Orange
+    ];
+
+    const datasets = Object.values(seriesMap).map((series, index) => {
+        // Assign unique color to each series
+        const color = colorPalette[index % colorPalette.length];
+
+        const isOnOffSignal = series.dataType.toLowerCase() === 'ignition' ||
+                             series.dataType.toLowerCase().includes('status') ||
+                             series.dataType.toLowerCase().includes('state');
+
+        // Create data array aligned with labels
+        let mappingCount = 0;  // Track for debug logging
+        const alignedData = labels.map(label => {
+            const dataPoint = series.data.find(d => d.x === label);
+            if (!dataPoint) return null;
+
+            let value = dataPoint.y;
+
+            // Normalize ON/OFF signals to match numeric data range
+            if (isOnOffSignal && needsNormalization) {
+                // Map 0 -> yMin, 1 -> yMax
+                // Use strict comparison since we normalized to exactly 0 or 1 earlier
+                const originalOnOff = value;  // This is 0 or 1
+                value = (originalOnOff === 0) ? yMin : yMax;
+
+                // Debug first few mappings
+                if (mappingCount < 3) {
+                    console.log(`Mapping ${series.label}: ${originalOnOff} -> ${value} (yMin=${yMin}, yMax=${yMax})`);
+                    mappingCount++;
+                }
+            }
+
+            return value;
+        });
+
+        return {
+            label: series.label,
+            data: alignedData,
+            borderColor: color,
+            backgroundColor: color + '20', // Add transparency
+            borderWidth: isOnOffSignal ? 3 : 2,  // Thicker line for ON/OFF signals
+            pointRadius: isOnOffSignal ? 0 : 3,  // No points for ON/OFF (looks cleaner as step)
+            pointHoverRadius: 5,
+            tension: isOnOffSignal ? 0 : 0.1,  // No smoothing for ON/OFF (sharp transitions)
+            stepped: isOnOffSignal ? 'before' : false,  // Step function for ON/OFF signals
+            spanGaps: true,
+            yAxisID: 'y',
+            isOnOff: isOnOffSignal  // Store for tooltip handling
+        };
+    });
+
+    // Determine chart title and Y-axis label
+    const uniqueDataTypes = [...new Set(Object.values(seriesMap).map(s => s.dataType))];
+    let title = 'Sensor Data Over Time';
+    let yAxisLabel = 'Value';
+    let explicitYMin = undefined;
+    let explicitYMax = undefined;
+
+    if (uniqueDataTypes.length === 1) {
+        const dataType = uniqueDataTypes[0];
+        const dataTypeLower = dataType.toLowerCase();
+
+        title = `${dataType} Over Time`;
+
+        if (dataTypeLower.includes('speed')) {
+            yAxisLabel = 'Speed (km/h)';
+        } else if (dataTypeLower.includes('temperature')) {
+            yAxisLabel = 'Temperature (°C)';
+        } else if (dataTypeLower.includes('humidity')) {
+            yAxisLabel = 'Humidity (%)';
+        } else if (dataTypeLower === 'ignition' || dataTypeLower.includes('status')) {
+            yAxisLabel = 'Status';
+        } else {
+            yAxisLabel = dataType;
+        }
+    } else {
+        // Multiple data types
+        title = 'Multi-Sensor Data Over Time';
+        yAxisLabel = 'Value';
+    }
+
+    // Set Y-axis range
+    if (hasOnOff && !hasNumeric) {
+        // Only ON/OFF signals
+        explicitYMin = 0;
+        explicitYMax = 1;
+    } else if (needsNormalization) {
+        // Mixed signals - use calculated numeric range
+        explicitYMin = yMin;
+        explicitYMax = yMax;
+    }
+    // Otherwise let Chart.js auto-scale
+
+    console.log('Chart config:', {
+        title,
+        yAxisLabel,
+        yMin: explicitYMin,
+        yMax: explicitYMax,
+        needsNormalization
+    });
+
+    // Final debug: Show a sample of the actual chart data
+    console.log('=== FINAL CHART DATA SAMPLE ===');
+    datasets.forEach((ds, idx) => {
+        if (idx < 3) {  // Only show first 3 series
+            const nonNullData = ds.data.filter(v => v !== null);
+            const sampleValues = nonNullData.slice(0, 5);
+            console.log(`${ds.label}:`, {
+                isOnOff: ds.isOnOff,
+                sampleValues,
+                min: Math.min(...nonNullData),
+                max: Math.max(...nonNullData),
+                count: nonNullData.length
+            });
+        }
+    });
+
+    return {
+        labels,
+        datasets,
+        title,
+        yAxisLabel,
+        yAxisMin: explicitYMin,
+        yAxisMax: explicitYMax,
+        hasOnOff,
+        hasNumeric,
+        needsNormalization,
+        normalizedRange: { min: yMin, max: yMax }
+    };
+}
+
+// Initialize chart when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Existing date initialization code...
+    const startDate = document.getElementById('start_date');
+    const endDate = document.getElementById('end_date');
+
+    // Set default dates for today if no values are set (first time visiting page)
+    if (!startDate.value && !endDate.value) {
+        const now = new Date();
+
+        // Get current date components
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+
+        // Format for datetime-local input (YYYY-MM-DDTHH:mm)
+        const startDateTime = `${year}-${month}-${day}T00:00`;
+        const endDateTime = `${year}-${month}-${day}T23:59`;
+
+        startDate.value = startDateTime;
+        endDate.value = endDateTime;
+
+        console.log('Default dates set (DD/MM/YYYY):', `${day}/${month}/${year}`, 'to', `${day}/${month}/${year}`);
+    }
+
+    // Add helpful tooltips for date format
+    startDate.title = 'Select date and time in DD/MM/YYYY HH:MM format';
+    endDate.title = 'Select date and time in DD/MM/YYYY HH:MM format';
+
+    // Create chart if data is present
+    if (document.getElementById('dataChart')) {
+        console.log('Chart.js loaded:', typeof Chart !== 'undefined');
+        if (typeof Chart !== 'undefined') {
+            setTimeout(createChart, 100); // Small delay to ensure table is fully rendered
+        } else {
+            console.error('Chart.js library not loaded!');
+            document.getElementById('chartMessage').textContent = 'Chart library failed to load. Please refresh the page.';
+        }
+    }
+});
 </script>
 {% endblock %}

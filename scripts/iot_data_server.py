@@ -155,26 +155,21 @@ class IoTDataServer:
             
             device_id = data['device_id']
             sensor_data = data['data']
-            client_timestamp = data.get('timestamp')  # Get timestamp from client if provided
-            
-            # Parse client timestamp if provided
-            data_timestamp = timezone.now()  # Default to server time
-            if client_timestamp:
+
+            # Message-level timestamp (for backward compatibility with old clients)
+            message_timestamp = data.get('timestamp')
+            default_timestamp = timezone.now()  # Default to server time
+
+            # Parse message-level timestamp if provided (used as fallback)
+            if message_timestamp:
                 try:
                     from datetime import datetime, timezone as dt_timezone
-                    # Parse ISO format timestamp from client with timezone info
-                    parsed_time = datetime.fromisoformat(client_timestamp)
-                    # Convert to UTC for consistent storage
+                    parsed_time = datetime.fromisoformat(message_timestamp)
                     utc_time = parsed_time.astimezone(dt_timezone.utc)
-                    # Make it Django timezone-aware (Django stores in UTC by default)
-                    data_timestamp = timezone.make_aware(utc_time.replace(tzinfo=None))
-                    
-                    # Log with client's local time for better visibility
-                    client_local_time = parsed_time.strftime('%Y-%m-%d %H:%M:%S %Z')
-                    self.logger.info(f"📅 Using client timestamp: {client_local_time} (client) -> {data_timestamp.strftime('%Y-%m-%d %H:%M:%S')} UTC (stored)")
+                    default_timestamp = timezone.make_aware(utc_time.replace(tzinfo=None))
                 except Exception as e:
-                    self.logger.warning(f"⚠️ Could not parse client timestamp '{client_timestamp}': {e}. Using server time.")
-            
+                    self.logger.warning(f"⚠️ Could not parse message timestamp '{message_timestamp}': {e}. Using server time.")
+
             # Find the device
             try:
                 device = Device.objects.get(device_id=device_id)
@@ -183,27 +178,40 @@ class IoTDataServer:
                     "status": "error",
                     "message": f"Device with ID '{device_id}' not found"
                 })
-            
+
             # Store sensor data
             stored_count = 0
             errors = []
-            
+            timestamps_used = set()
+
             for reading in sensor_data:
                 try:
                     if 'type' not in reading or 'value' not in reading:
                         errors.append("Missing 'type' or 'value' in data entry")
                         continue
-                    
-                    # Create device data entry using client timestamp
+
+                    # Use per-reading timestamp if available, otherwise use message-level or server time
+                    reading_timestamp = default_timestamp
+                    if 'timestamp' in reading:
+                        try:
+                            from datetime import datetime, timezone as dt_timezone
+                            parsed_time = datetime.fromisoformat(reading['timestamp'])
+                            utc_time = parsed_time.astimezone(dt_timezone.utc)
+                            reading_timestamp = timezone.make_aware(utc_time.replace(tzinfo=None))
+                            timestamps_used.add(reading['timestamp'])
+                        except Exception as e:
+                            self.logger.warning(f"⚠️ Could not parse reading timestamp '{reading['timestamp']}': {e}. Using fallback.")
+
+                    # Create device data entry using reading-specific timestamp
                     DeviceData.objects.create(
                         device=device,
-                        timestamp=data_timestamp,
+                        timestamp=reading_timestamp,
                         data_type=reading['type'],
                         value=float(reading['value']),
                         unit=reading.get('unit', '')
                     )
                     stored_count += 1
-                    
+
                 except (ValueError, TypeError) as e:
                     errors.append(f"Invalid value for {reading.get('type', 'unknown')}: {e}")
                 except Exception as e:
@@ -225,13 +233,16 @@ class IoTDataServer:
                 response["errors"] = errors
             
             # Log with client timestamp information
-            if client_timestamp:
-                # Show client timestamp in log
+            if timestamps_used:
+                # Show unique client timestamps in log
                 try:
                     from datetime import datetime
-                    parsed_time = datetime.fromisoformat(client_timestamp)
-                    client_local_time = parsed_time.strftime('%Y-%m-%d %H:%M:%S')
-                    self.logger.info(f"✅ Stored {stored_count} data points for device {device.name} ({device_id}) at client time: {client_local_time}")
+                    if len(timestamps_used) == 1:
+                        parsed_time = datetime.fromisoformat(list(timestamps_used)[0])
+                        client_local_time = parsed_time.strftime('%Y-%m-%d %H:%M:%S')
+                        self.logger.info(f"✅ Stored {stored_count} data points for device {device.name} ({device_id}) at {client_local_time}")
+                    else:
+                        self.logger.info(f"✅ Stored {stored_count} data points for device {device.name} ({device_id}) with {len(timestamps_used)} unique timestamps")
                 except:
                     self.logger.info(f"✅ Stored {stored_count} data points for device {device.name} ({device_id})")
             else:

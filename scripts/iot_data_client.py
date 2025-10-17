@@ -83,12 +83,12 @@ class IoTDataClient:
         daily_cycle = 3 * math.sin(self.simulation_time * 0.1)  # Daily temperature variation
         random_noise = random.uniform(-2, 2)  # Random fluctuations
         temperature = self.base_temperature + daily_cycle + random_noise
-        
+
         # Humidity inversely correlated with temperature + random variations
         humidity_base = self.base_humidity - (temperature - self.base_temperature) * 1.5
         humidity_noise = random.uniform(-5, 5)
         humidity = max(20, min(90, humidity_base + humidity_noise))  # Clamp between 20-90%
-        
+
         # Occasionally simulate extreme conditions
         if random.random() < 0.05:  # 5% chance
             if random.choice([True, False]):
@@ -97,26 +97,30 @@ class IoTDataClient:
             else:
                 temperature -= random.uniform(3, 8)   # Cold snap
                 humidity += random.uniform(5, 15)
-        
+
         # Round values
         temperature = round(temperature, 1)
         humidity = round(max(0, min(100, humidity)), 1)
-        
+
         self.simulation_time += 1
-        
+
+        # Generate one timestamp for all readings taken at the same moment
+        timestamp = datetime.now().astimezone().isoformat()
+
         return {
             "device_id": self.device_id,
-            "timestamp": datetime.now().astimezone().isoformat(),
             "data": [
                 {
                     "type": "temperature",
                     "value": temperature,
-                    "unit": "°C"
+                    "unit": "°C",
+                    "timestamp": timestamp
                 },
                 {
-                    "type": "humidity", 
+                    "type": "humidity",
                     "value": humidity,
-                    "unit": "%"
+                    "unit": "%",
+                    "timestamp": timestamp
                 }
             ]
         }
@@ -126,7 +130,7 @@ class IoTDataClient:
         # Engine state simulation (10% chance to change state)
         if random.random() < 0.1:
             self.is_engine_on = not self.is_engine_on
-        
+
         # Speed simulation based on engine state
         if self.is_engine_on:
             # Car is running - simulate driving
@@ -140,42 +144,45 @@ class IoTDataClient:
         else:
             # Engine off - gradually stop
             self.current_speed = max(0, self.current_speed - random.uniform(10, 20))
-        
+
         # Location changes when moving
         if self.current_speed > 5:
             if random.random() < 0.3:  # 30% chance to change location when moving
                 self.location_index = (self.location_index + 1) % len(self.vehicle_locations)
-        
+
         # Round values
         speed = round(self.current_speed, 1)
         current_location = self.vehicle_locations[self.location_index]
-        
-        # Prepare basic vehicle data
+
+        self.simulation_time += 1
+
+        # Generate one timestamp for all readings taken at the same moment
+        timestamp = datetime.now().astimezone().isoformat()
+
+        # Prepare basic vehicle data with individual timestamps
         vehicle_data = [
             {
                 "type": "location",
                 "value": 0,  # Placeholder value
-                "unit": current_location
+                "unit": current_location,
+                "timestamp": timestamp
             },
             {
                 "type": "speed",
                 "value": speed,
-                "unit": "km/h"
+                "unit": "km/h",
+                "timestamp": timestamp
             },
             {
                 "type": "ignition",
                 "value": 1 if self.is_engine_on else 0,
-                "unit": "on/off"
+                "unit": "on/off",
+                "timestamp": timestamp
             }
         ]
-        
-        # Vehicle data doesn't include temperature
-        
-        self.simulation_time += 1
-        
+
         return {
             "device_id": self.device_id,
-            "timestamp": datetime.now().astimezone().isoformat(),
             "data": vehicle_data
         }
     
