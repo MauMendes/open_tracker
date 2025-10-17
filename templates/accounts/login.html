@@ -22,25 +22,27 @@
             {% csrf_token %}
             
             <div class="form-group">
-                <input type="text" 
-                       name="username" 
-                       id="username" 
-                       class="form-input" 
-                       placeholder=" " 
+                <input type="text"
+                       name="username"
+                       id="username"
+                       class="form-input"
+                       placeholder=" "
                        value="{{ form.username.value|default:'' }}"
+                       autocomplete="username"
                        required>
                 <label for="username" class="form-label">Username</label>
                 {% if form.username.errors %}
                     <div class="error-message">{{ form.username.errors.0 }}</div>
                 {% endif %}
             </div>
-            
+
             <div class="form-group">
-                <input type="password" 
-                       name="password" 
-                       id="password" 
-                       class="form-input" 
-                       placeholder=" " 
+                <input type="password"
+                       name="password"
+                       id="password"
+                       class="form-input"
+                       placeholder=" "
+                       autocomplete="current-password"
                        required>
                 <label for="password" class="form-label">Password</label>
                 <button type="button" class="password-toggle" onclick="togglePassword()">Show</button>
@@ -66,7 +68,7 @@
 function togglePassword() {
     const passwordInput = document.getElementById('password');
     const toggleButton = document.querySelector('.password-toggle');
-    
+
     if (passwordInput.type === 'password') {
         passwordInput.type = 'text';
         toggleButton.textContent = 'Hide';
@@ -75,5 +77,39 @@ function togglePassword() {
         toggleButton.textContent = 'Show';
     }
 }
+
+// Handle autofill detection for floating labels
+function checkAutofill() {
+    const inputs = document.querySelectorAll('.form-input');
+    inputs.forEach(input => {
+        // Check if input has a value (from autofill or manual entry)
+        if (input.value !== '') {
+            input.classList.add('has-value');
+        }
+
+        // Listen for input changes
+        input.addEventListener('input', function() {
+            if (this.value !== '') {
+                this.classList.add('has-value');
+            } else {
+                this.classList.remove('has-value');
+            }
+        });
+
+        // Listen for autofill animation (webkit browsers)
+        input.addEventListener('animationstart', function(e) {
+            if (e.animationName === 'onAutoFillStart') {
+                this.classList.add('has-value');
+            }
+        });
+    });
+}
+
+// Run on page load
+document.addEventListener('DOMContentLoaded', checkAutofill);
+
+// Also check after a short delay to catch delayed autofill
+setTimeout(checkAutofill, 100);
+setTimeout(checkAutofill, 500);
 </script>
 {% endblock %}

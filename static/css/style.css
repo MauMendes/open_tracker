@@ -168,11 +168,24 @@ body {
 }
 
 .form-input:focus + .form-label,
-.form-input:not(:placeholder-shown) + .form-label {
+.form-input:not(:placeholder-shown) + .form-label,
+.form-input.has-value + .form-label,
+.form-input:-webkit-autofill + .form-label {
     transform: translateY(-14px) scale(0.75);
     color: #1a73e8;
     background-color: #fff;
     padding: 0 4px;
+}
+
+/* Detect autofill with animation (webkit browsers) */
+@keyframes onAutoFillStart {
+    from { }
+    to { }
+}
+
+.form-input:-webkit-autofill {
+    animation-name: onAutoFillStart;
+    animation-duration: 0.001s;
 }
 
 /* Password toggle styles */
