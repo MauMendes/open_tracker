@@ -13,6 +13,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='device',
             name='device_type',
-            field=models.CharField(choices=[('sensor', 'Sensor'), ('actuator', 'Actuator'), ('camera', 'Camera'), ('thermostat', 'Thermostat'), ('light', 'Smart Light'), ('lock', 'Smart Lock'), ('speaker', 'Smart Speaker'), ('hub', 'IoT Hub'), ('vehicle', 'Vehicle'), ('other', 'Other')], max_length=20),
+            field=models.CharField(choices=[('sensor', 'Sensor'), ('actuator', 'Actuator'), ('camera', 'Camera'), ('thermostat', 'Temperature Sensor'), ('light', 'Smart Light'), ('lock', 'Smart Lock'), ('speaker', 'Smart Speaker'), ('hub', 'IoT Hub'), ('vehicle', 'Vehicle'), ('other', 'Other')], max_length=20),
         ),
     ]

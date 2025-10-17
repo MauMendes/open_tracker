@@ -70,14 +70,14 @@ class IoTDataClient:
         """Generate realistic sensor data based on device type"""
         # Detect device type based on device ID
         if self.device_id.startswith('T'):
-            return self.generate_thermostat_data()
+            return self.generate_temp_sensor_data()
         elif self.device_id.startswith('OALLM'):
             return self.generate_vehicle_data()
         else:
             # Default to temperature sensor for unknown types
-            return self.generate_thermostat_data()
-    
-    def generate_thermostat_data(self):
+            return self.generate_temp_sensor_data()
+
+    def generate_temp_sensor_data(self):
         """Generate realistic temperature sensor data"""
         # Simulate daily temperature cycle + random variations
         daily_cycle = 3 * math.sin(self.simulation_time * 0.1)  # Daily temperature variation
@@ -270,8 +270,8 @@ class IoTDataClient:
                 
                 # Send temperature sensor data (T01)
                 self.device_id = 'T01'
-                thermostat_data = self.generate_thermostat_data()
-                success1 = self.send_data(thermostat_data)
+                temp_sensor_data = self.generate_temp_sensor_data()
+                success1 = self.send_data(temp_sensor_data)
                 
                 # Wait a moment between devices
                 time.sleep(1)

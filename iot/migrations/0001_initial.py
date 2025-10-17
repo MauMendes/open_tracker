@@ -33,7 +33,7 @@ class Migration(migrations.Migration):
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('name', models.CharField(max_length=100)),
                 ('description', models.TextField(blank=True)),
-                ('device_type', models.CharField(choices=[('sensor', 'Sensor'), ('actuator', 'Actuator'), ('camera', 'Camera'), ('thermostat', 'Thermostat'), ('light', 'Smart Light'), ('lock', 'Smart Lock'), ('speaker', 'Smart Speaker'), ('hub', 'IoT Hub'), ('other', 'Other')], max_length=20)),
+                ('device_type', models.CharField(choices=[('sensor', 'Sensor'), ('actuator', 'Actuator'), ('camera', 'Camera'), ('thermostat', 'Temperature Sensor'), ('light', 'Smart Light'), ('lock', 'Smart Lock'), ('speaker', 'Smart Speaker'), ('hub', 'IoT Hub'), ('other', 'Other')], max_length=20)),
                 ('device_id', models.CharField(help_text='Unique device identifier', max_length=100)),
                 ('is_active', models.BooleanField(default=True)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
