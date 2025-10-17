@@ -1,0 +1,1054 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if is_admin_view %}Device Management - Admin View{% else %}Device Management{% endif %} - OpenTracker{% endblock %}
+
+{% block content %}
+<div class="management-container">
+    <div class="page-header">
+        <div class="page-title">
+            {% if is_admin_view %}
+                <h1>Device Management</h1>
+                <p>Manage all IoT devices across all groups</p>
+            {% else %}
+                <h1>Device Management</h1>
+                <p>Manage devices from your groups ({{ total_groups }} groups)</p>
+            {% endif %}
+        </div>
+        <div class="page-actions">
+            <div class="devices-stats">
+                <h3>Overview</h3>
+                <div class="stat-cards-header">
+                    <div class="stat-card-header">
+                        <span class="stat-number">{{ page_obj|length }}</span>
+                        <span class="stat-label">{% if search_query %}Found{% else %}Showing{% endif %}</span>
+                    </div>
+                    <div class="stat-card-header">
+                        <span class="stat-number">{{ total_devices }}</span>
+                        <span class="stat-label">Total</span>
+                    </div>
+                    {% if not is_admin_view %}
+                        <div class="stat-card-header">
+                            <span class="stat-number">{{ total_groups }}</span>
+                            <span class="stat-label">Groups</span>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="devices-content">
+        <div class="devices-main">
+            <div class="main-search-section">
+                <form method="get" class="main-search-form">
+                    <div class="main-search-input-group">
+                        <div>
+                            <input type="text" 
+                                   name="search" 
+                                   placeholder="Search devices..." 
+                                   value="{{ search_query }}" 
+                                   class="main-search-input">
+                            <button type="submit" class="btn-main-search">Search</button>
+                            {% if search_query %}
+                                <a href="?per_page={{ per_page }}" class="btn-main-clear">Clear</a>
+                            {% endif %}
+                        </div>
+                        <a href="{% url 'iot:create_device' %}" class="btn-add-user">Add Device</a>
+                    {% if search_query %}
+                        <p class="main-search-info">Searching for "{{ search_query }}"</p>
+                    {% endif %}
+                </form>
+            </div>
+            {% if page_obj %}
+        <div class="devices-table-container">
+            <table class="devices-table">
+                <thead>
+                    <tr>
+                        <th>Device</th>
+                        <th>Type</th>
+                        {% if is_admin_view %}<th>Group</th>{% endif %}
+                        <th>Owner</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for device in page_obj %}
+                    <tr>
+                        <td class="device-name-cell">
+                            <div class="device-name-info">
+                                <span class="device-icon">
+                                    {% if device.device_type == 'light' %}🔆
+                                    {% elif device.device_type == 'camera' %}📷
+                                    {% elif device.device_type == 'sensor' %}📡
+                                    {% elif device.device_type == 'thermostat' %}🌡️
+                                    {% elif device.device_type == 'lock' %}🔐
+                                    {% elif device.device_type == 'speaker' %}🔊
+                                    {% elif device.device_type == 'hub' %}🏠
+                                    {% elif device.device_type == 'vehicle' %}🚗
+                                    {% else %}📱
+                                    {% endif %}
+                                </span>
+                                <div>
+                                    <strong>{{ device.name }}</strong>
+                                    {% if device.description %}
+                                        <br><small class="device-description">{{ device.description|truncatechars:50 }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                        <td>{{ device.get_device_type_display }}</td>
+                        {% if is_admin_view %}
+                            <td><span class="group-badge">{{ device.group.name }}</span></td>
+                        {% endif %}
+                        <td>
+                            {{ device.owner.username }}
+                            {% if device.is_owner %}
+                                <span class="ownership-badge">You</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if device.is_active %}
+                                <span class="status-badge active">Active</span>
+                            {% else %}
+                                <span class="status-badge inactive">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ device.created_at|date:"M d, Y" }}</td>
+                        <td class="actions-cell">
+                            {% if device.can_view or user.is_superuser %}
+                                <a href="{% url 'iot:device_detail' device.id %}" class="btn-action">View</a>
+                            {% endif %}
+                            {% if device.is_owner or user.is_superuser or membership and membership.role == 'admin' %}
+                                <a href="{% url 'iot:share_device' device.id %}" class="btn-action">Share</a>
+                            {% endif %}
+                            {% if user.is_superuser or device.owner == user %}
+                                <a href="{% url 'iot:delete_device' device.id %}" 
+                                   class="btn-action btn-danger"
+                                   onclick="return confirm('Delete device {{ device.name }}? This action cannot be undone.')">Delete</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            </div>
+            {% else %}
+                <div class="empty-state">
+                    {% if search_query %}
+                        <h3>No Devices Found</h3>
+                        <p>No devices match your search "{{ search_query }}"</p>
+                        <a href="{% url 'iot:group_devices' %}" class="btn-secondary">Clear Search</a>
+                    {% elif is_admin_view %}
+                        <h3>No Devices in System</h3>
+                        <p>There are no IoT devices created yet across all groups.</p>
+                        <div class="empty-state-spacer"></div>
+                        <a href="{% url 'iot:create_device' %}" class="btn-primary">Add First Device</a>
+                    {% else %}
+                        <h3>No Devices Yet</h3>
+                        <p>This group doesn't have any devices yet.</p>
+                        <div class="empty-state-spacer"></div>
+                        <a href="{% url 'iot:create_device' %}" class="btn-primary">Add First Device</a>
+                    {% endif %}
+                </div>
+            {% endif %}
+            
+            <!-- Pagination Controls -->
+            <div class="pagination-container">
+                <div class="pagination-size-control">
+                    <form method="get" class="pagination-size-form">
+                        {% if search_query %}
+                            <input type="hidden" name="search" value="{{ search_query }}">
+                        {% endif %}
+                        <span class="page-info-text">Show:</span>
+                        <select name="per_page" id="per_page_bottom" class="pagination-size-select" onchange="this.form.submit()">
+                            <option value="5" {% if per_page == 5 %}selected{% endif %}>5</option>
+                            <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+                            <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
+                        </select>
+                        <span class="page-info-text">per page</span>
+                    </form>
+                </div>
+                
+                {% if page_obj.has_other_pages %}
+                <div class="pagination">
+                    {% if page_obj.has_previous %}
+                        <a href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}&per_page={{ per_page }}" class="page-link">First</a>
+                        <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}&per_page={{ per_page }}" class="page-link">Previous</a>
+                    {% endif %}
+                    
+                    <span class="page-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} ({{ page_obj.paginator.count }} total devices)</span>
+                    
+                    {% if page_obj.has_next %}
+                        <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}&per_page={{ per_page }}" class="page-link">Next</a>
+                        <a href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}&per_page={{ per_page }}" class="page-link">Last</a>
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="pagination">
+                    <span class="page-info">({{ page_obj.paginator.count }} total devices)</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function controlDevice(deviceId) {
+    // Placeholder for device control functionality
+    alert('Device control functionality would be implemented here.\nDevice ID: ' + deviceId);
+    // In a real implementation, this would send commands to the IoT device
+}
+</script>
+
+<style>
+    .page-header {
+        background: white;
+        border-radius: 10px;
+        padding: 24px;
+        margin-bottom: 24px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 24px;
+    }
+    
+    .page-title h1 {
+        margin: 0 0 8px 0;
+        color: #1a73e8;
+        font-size: 28px;
+        font-weight: 400;
+    }
+    
+    .page-title p {
+        margin: 0;
+        color: #5f6368;
+        font-size: 14px;
+    }
+    
+    .page-actions {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+    }
+    
+    .devices-content {
+        display: block;
+        min-height: 600px;
+    }
+    
+    .main-search-section {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 24px;
+        border-left: 4px solid #1a73e8;
+    }
+    
+    .main-search-input-group {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+        justify-content: space-between;
+    }
+    
+    .main-search-input-group > div:first-child {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex: 1;
+    }
+    
+    .main-search-input {
+        flex: 1;
+        min-width: 300px;
+        padding: 12px 16px;
+        border: 2px solid #e8eaed;
+        border-radius: 8px;
+        font-size: 16px;
+        transition: border-color 0.2s ease;
+    }
+    
+    .main-search-input:focus {
+        outline: none;
+        border-color: #1a73e8;
+        box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
+    }
+    
+    .btn-main-search {
+        background: #1a73e8;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+    }
+    
+    .btn-main-search:hover {
+        background: #1557b0;
+    }
+    
+    .btn-main-clear {
+        display: inline-block;
+        background: #f1f3f4;
+        color: #5f6368;
+        text-decoration: none;
+        padding: 12px 20px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        transition: background-color 0.2s ease;
+    }
+    
+    .btn-main-clear:hover {
+        background: #e8eaed;
+    }
+    
+    .main-search-info {
+        margin: 12px 0 0 0;
+        padding: 8px 12px;
+        background: #e3f2fd;
+        border-radius: 6px;
+        font-size: 14px;
+        color: #1565c0;
+    }
+    
+    .stat-cards-header {
+        display: flex;
+        gap: 20px;
+    }
+    
+    .stat-card-header {
+        background: #f8f9fa;
+        padding: 12px 16px;
+        border-radius: 8px;
+        text-align: center;
+        border-left: 4px solid #1a73e8;
+        min-width: 80px;
+    }
+    
+    .stat-card-header .stat-number {
+        display: block;
+        font-size: 20px;
+        font-weight: 600;
+        color: #1a73e8;
+        line-height: 1;
+    }
+    
+    .stat-card-header .stat-label {
+        display: block;
+        font-size: 11px;
+        color: #5f6368;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-top: 4px;
+    }
+    
+    .btn-add-device {
+        background: #1a73e8;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 500;
+        text-decoration: none;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+        display: inline-block;
+    }
+    
+    .btn-add-device:hover {
+        background: #1557b0;
+        color: white;
+        text-decoration: none;
+    }
+    
+    .devices-main {
+        background: white;
+        border-radius: 10px;
+        padding: 24px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .search-section h3,
+    .devices-stats h3 {
+        margin: 0 0 16px 0;
+        color: #1a73e8;
+        font-size: 18px;
+        font-weight: 500;
+    }
+    
+    .search-section {
+        margin-bottom: 32px;
+        padding-bottom: 24px;
+        border-bottom: 1px solid #e8eaed;
+    }
+    
+    .search-input-group {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    
+    .search-input {
+        flex: 1;
+        padding: 12px 16px;
+        border: 2px solid #e8eaed;
+        border-radius: 8px;
+        font-size: 14px;
+        transition: border-color 0.2s ease;
+    }
+    
+    .search-input:focus {
+        outline: none;
+        border-color: #1a73e8;
+    }
+    
+    .btn-search {
+        background: #1a73e8;
+        color: white;
+        border: none;
+        padding: 12px 20px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+    }
+    
+    .btn-search:hover {
+        background: #1557b0;
+    }
+    
+    .btn-clear {
+        display: inline-block;
+        background: #f1f3f4;
+        color: #5f6368;
+        text-decoration: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        transition: background-color 0.2s ease;
+    }
+    
+    .btn-clear:hover {
+        background: #e8eaed;
+    }
+    
+    .stat-cards {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    
+    .stat-card {
+        background: #f8f9fa;
+        padding: 16px;
+        border-radius: 8px;
+        text-align: center;
+        border-left: 4px solid #1a73e8;
+    }
+    
+    .stat-number {
+        display: block;
+        font-size: 24px;
+        font-weight: 600;
+        color: #1a73e8;
+        line-height: 1;
+    }
+    
+    .stat-label {
+        display: block;
+        font-size: 12px;
+        color: #5f6368;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-top: 4px;
+    }
+    
+    .search-info {
+        margin-top: 16px;
+        padding: 12px;
+        background: #e3f2fd;
+        border-radius: 6px;
+        font-size: 13px;
+        color: #1565c0;
+        text-align: center;
+    }
+    
+    .devices-table-container {
+        background: white;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    
+    .devices-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+    }
+    
+    .devices-table th,
+    .devices-table td {
+        padding: 20px 24px;
+        text-align: left;
+        border-bottom: 1px solid #e8eaed;
+        vertical-align: middle;
+    }
+    
+    .devices-table th {
+        background: #f8f9fa;
+        font-weight: 500;
+        color: #202124;
+        border-bottom: 2px solid #e8eaed;
+    }
+    
+    .devices-table tr:hover {
+        background: #f8f9fa;
+    }
+    
+    .device-name-cell {
+        min-width: 250px;
+    }
+    
+    .device-name-info {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+    }
+    
+    .device-icon {
+        font-size: 24px;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f8f9fa;
+        border-radius: 8px;
+        flex-shrink: 0;
+    }
+    
+    .device-description {
+        color: #5f6368;
+        font-size: 12px;
+    }
+    
+    .group-badge {
+        background: #e8f0fe;
+        color: #1a73e8;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+    
+    .ownership-badge {
+        background: #e8f5e8;
+        color: #137333;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 500;
+        margin-left: 8px;
+    }
+    
+    .status-badge {
+        padding: 4px 12px;
+        border-radius: 16px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+    
+    .status-badge.active {
+        background: #e8f5e8;
+        color: #137333;
+    }
+    
+    .status-badge.inactive {
+        background: #fce8e6;
+        color: #d93025;
+    }
+    
+    .actions-cell {
+        min-width: 200px;
+    }
+    
+    .btn-action {
+        display: inline-block;
+        padding: 6px 12px;
+        margin-right: 8px;
+        margin-bottom: 4px;
+        border-radius: 4px;
+        text-decoration: none;
+        font-size: 12px;
+        font-weight: 500;
+        border: 1px solid #dadce0;
+        background: white;
+        color: #1a73e8;
+        transition: all 0.15s ease-in-out;
+    }
+    
+    .btn-action:hover {
+        background: #f8f9fa;
+        border-color: #1a73e8;
+    }
+    
+    .btn-action.btn-danger {
+        color: #ea4335;
+        border-color: #ea4335;
+    }
+    
+    .btn-action.btn-danger:hover {
+        background: #fce8e6;
+        border-color: #ea4335;
+    }
+
+.devices-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+}
+
+.device-card {
+    background: #fff;
+    border: 1px solid #dadce0;
+    border-radius: 8px;
+    padding: 20px;
+    transition: all 0.15s ease-in-out;
+}
+
+.device-card:hover {
+    border-color: #1a73e8;
+    box-shadow: 0 2px 8px rgba(26, 115, 232, 0.1);
+}
+
+.device-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.device-icon {
+    font-size: 32px;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.status-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.status-indicator.active {
+    background: #34a853;
+}
+
+.status-indicator.inactive {
+    background: #ea4335;
+}
+
+.device-info h3 {
+    margin: 0 0 4px 0;
+    color: #202124;
+    font-size: 18px;
+}
+
+.device-type {
+    color: #5f6368;
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.device-group {
+    color: #1a73e8;
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+
+.device-description {
+    color: #5f6368;
+    font-size: 14px;
+    margin: 0 0 16px 0;
+    line-height: 1.4;
+}
+
+.device-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+    font-size: 12px;
+}
+
+.owner {
+    color: #5f6368;
+}
+
+.ownership-badge {
+    background: #e8f5e8;
+    color: #137333;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+.permission-badge {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+.permission-admin {
+    background: #e3f2fd;
+    color: #1565c0;
+}
+
+.permission-reader {
+    background: #f3e5f5;
+    color: #7b1fa2;
+}
+
+.device-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.device-btn {
+    padding: 8px 12px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+}
+
+.detail-btn {
+    background: #f8f9fa;
+    color: #3c4043;
+    border: 1px solid #dadce0;
+}
+
+.detail-btn:hover {
+    background: #f1f3f4;
+}
+
+.control-btn {
+    background: #1a73e8;
+    color: white;
+}
+
+.control-btn:hover {
+    background: #1557b0;
+}
+
+.share-btn {
+    background: #34a853;
+    color: white;
+}
+
+.share-btn:hover {
+    background: #2d8f47;
+}
+
+.delete-btn {
+    background: #ea4335;
+    color: white;
+}
+
+.delete-btn:hover {
+    background: #d93025;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #5f6368;
+}
+
+.empty-state h3 {
+    color: #202124;
+    margin-bottom: 16px;
+}
+
+.empty-state-spacer {
+    height: 32px;
+}
+
+.admin-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.user-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.search-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.search-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.search-input {
+    padding: 8px 12px;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    font-size: 14px;
+    min-width: 200px;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: #1a73e8;
+    box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
+}
+
+.btn-search {
+    background: #1a73e8;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.15s ease-in-out;
+}
+
+.btn-search:hover {
+    background: #1557b0;
+}
+
+.devices-summary {
+    background: #f8f9fa;
+    border: 1px solid #e8eaed;
+    border-radius: 4px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    color: #5f6368;
+    font-size: 14px;
+}
+
+/* Pagination Styles */
+.pagination-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 20px;
+    padding: 15px 0;
+    border-top: 1px solid #e9ecef;
+}
+
+.pagination {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.pagination-size-control {
+    display: flex;
+    align-items: center;
+}
+
+.pagination-size-form {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+}
+
+.page-info-text {
+    font-size: 14px;
+    color: #666;
+    margin: 0;
+}
+
+.pagination-size-select {
+    padding: 4px 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: white;
+    font-size: 14px;
+    color: #666;
+    cursor: pointer;
+    min-width: 50px;
+    margin: 0 2px;
+}
+
+.pagination-size-select:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.page-link {
+    color: #007bff;
+    text-decoration: none;
+    padding: 8px 12px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.page-link:hover {
+    background-color: #e9ecef;
+    border-color: #adb5bd;
+}
+
+.page-info {
+    color: #666;
+    font-size: 14px;
+    margin: 0 10px;
+}
+
+@media (max-width: 768px) {
+    .page-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+    }
+    
+    .page-actions {
+        justify-content: center;
+    }
+    
+    .stat-cards-header {
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .stat-card-header {
+        min-width: auto;
+    }
+    
+    .main-search-input {
+        min-width: 200px;
+    }
+    
+    .main-search-input-group {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+    
+    .main-search-input-group > div:first-child {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .btn-main-search,
+    .btn-main-clear,
+    .btn-add-device {
+        width: 100%;
+    }
+    
+    .search-input {
+        min-width: 150px;
+    }
+    
+    .devices-table-container {
+        border: none;
+        border-radius: 0;
+    }
+    
+    .devices-table th,
+    .devices-table td {
+        padding: 12px 8px;
+        font-size: 12px;
+    }
+    
+    .device-name-info {
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    .btn-action {
+        padding: 4px 8px;
+        font-size: 11px;
+        margin-right: 4px;
+        margin-bottom: 4px;
+    }
+    
+    .stat-cards {
+        flex-direction: row;
+        gap: 12px;
+    }
+    
+    .stat-card {
+        flex: 1;
+        padding: 12px;
+    }
+    
+    .pagination-container {
+        justify-content: center;
+    }
+    
+    .pagination {
+        flex-direction: column;
+        gap: 15px;
+    }
+}
+
+.btn-add-user {
+    background: #1a73e8;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    display: inline-block;
+}
+
+.btn-add-user:hover {
+    background: #1557b0;
+    color: white;
+    text-decoration: none;
+}
+</style>
+{% endblock %}

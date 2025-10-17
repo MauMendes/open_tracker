@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+
+{% block title %}Profile - {{ user.username }}{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card" style="max-width: 600px;">
+        <div class="auth-header">
+            <h1 class="auth-title">User Profile</h1>
+            <p class="auth-subtitle">Account information for {{ user.username }}</p>
+        </div>
+        
+        <div class="profile-info">
+            <div class="info-group">
+                <label class="info-label">Username:</label>
+                <span class="info-value">{{ user.username }}</span>
+            </div>
+            
+            {% if user.email %}
+            <div class="info-group">
+                <label class="info-label">Email:</label>
+                <span class="info-value">{{ user.email }}</span>
+            </div>
+            {% endif %}
+            
+            {% if user.first_name %}
+            <div class="info-group">
+                <label class="info-label">First Name:</label>
+                <span class="info-value">{{ user.first_name }}</span>
+            </div>
+            {% endif %}
+            
+            {% if user.last_name %}
+            <div class="info-group">
+                <label class="info-label">Last Name:</label>
+                <span class="info-value">{{ user.last_name }}</span>
+            </div>
+            {% endif %}
+            
+            <div class="info-group">
+                <label class="info-label">Member since:</label>
+                <span class="info-value">{{ date_joined|date:"F d, Y" }}</span>
+            </div>
+            
+            {% if last_login %}
+            <div class="info-group">
+                <label class="info-label">Last login:</label>
+                <span class="info-value">{{ last_login|date:"F d, Y g:i A" }}</span>
+            </div>
+            {% else %}
+            <div class="info-group">
+                <label class="info-label">Last login:</label>
+                <span class="info-value">Never</span>
+            </div>
+            {% endif %}
+            
+            <div class="info-group">
+                <label class="info-label">Account Status:</label>
+                <span class="info-value">
+                    {% if is_superuser %}
+                        <span class="status-badge superuser">Super Admin</span>
+                    {% elif is_staff %}
+                        <span class="status-badge staff">Staff</span>
+                    {% else %}
+                        <span class="status-badge user">Regular User</span>
+                    {% endif %}
+                </span>
+            </div>
+            
+            <div class="info-group">
+                <label class="info-label">IoT Groups:</label>
+                <div class="info-value">
+                    {% if user_memberships %}
+                        <div class="groups-list">
+                            {% for membership in user_memberships %}
+                                <div class="group-membership">
+                                    <span class="group-name">{{ membership.group.name }}</span>
+                                    <span class="role-badge role-{{ membership.role }}">{{ membership.get_role_display }}</span>
+                                    {% if membership.group.description %}
+                                        <p class="group-desc">{{ membership.group.description }}</p>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <span class="no-groups">Not a member of any IoT groups</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="auth-footer" style="margin-top: 32px;">
+            <div class="nav-links">
+                <a href="{% url 'myapp:index' %}" class="btn-secondary">Back to Home</a>
+                {% if user.is_superuser %}
+                    <a href="{% url 'accounts:user_management' %}" class="btn-primary" style="text-decoration: none;">Manage Users</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.groups-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.group-membership {
+    background: #f8f9fa;
+    border: 1px solid #e8eaed;
+    border-radius: 8px;
+    padding: 16px;
+    transition: background-color 0.15s ease-in-out;
+}
+
+.group-membership:hover {
+    background: #f1f3f4;
+}
+
+.group-name {
+    font-weight: 500;
+    color: #202124;
+    font-size: 16px;
+    margin-right: 12px;
+}
+
+.group-desc {
+    color: #5f6368;
+    font-size: 14px;
+    margin: 8px 0 0 0;
+    line-height: 1.4;
+}
+
+.role-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.role-admin {
+    background: #fce8e6;
+    color: #d93025;
+    border: 1px solid #fce8e6;
+}
+
+.role-member {
+    background: #e6f4ea;
+    color: #1e8e3e;
+    border: 1px solid #e6f4ea;
+}
+
+.role-owner {
+    background: #e8f0fe;
+    color: #1a73e8;
+    border: 1px solid #e8f0fe;
+}
+
+.no-groups {
+    color: #5f6368;
+    font-style: italic;
+}
+
+.info-group {
+    margin-bottom: 16px;
+}
+
+.info-group:last-child {
+    margin-bottom: 0;
+}
+</style>
+
+{% endblock %}

@@ -1,0 +1,358 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ device.name }} - Device Details{% endblock %}
+
+{% block content %}
+<div class="management-container">
+    <div class="management-header">
+        <div class="header-content">
+            <div>
+                <h1>{{ device.name }}</h1>
+                <p>{{ device.get_device_type_display }} in {{ device.group.name }}</p>
+            </div>
+            <div class="header-actions">
+                {% if request.GET.source == 'dashboard' %}
+                    <a href="{% url 'iot:dashboard' %}" class="btn-outline">← Back to Dashboard</a>
+                {% else %}
+                    <a href="{% url 'iot:group_devices' %}" class="btn-outline">← Back to Devices</a>
+                {% endif %}
+                {% if can_manage %}
+                    <a href="{% url 'iot:edit_device' device.id %}" class="btn-secondary">Edit Device</a>
+                    <a href="{% url 'iot:share_device' device.id %}" class="btn-primary">Share Device</a>
+                {% endif %}
+                {% if user.is_superuser or device.owner == user %}
+                    <a href="{% url 'iot:delete_device' device.id %}" 
+                       class="btn-danger"
+                       onclick="return confirm('Delete device {{ device.name }}? This action cannot be undone.')">
+                        Delete Device
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="device-detail-grid">
+        <div class="device-info-card">
+            <h3>Device Information</h3>
+            <div class="info-grid">
+                <div class="info-item">
+                    <label>Name:</label>
+                    <span>{{ device.name }}</span>
+                </div>
+                <div class="info-item">
+                    <label>Type:</label>
+                    <span>{{ device.get_device_type_display }}</span>
+                </div>
+                <div class="info-item">
+                    <label>Device ID:</label>
+                    <span class="device-id">{{ device.device_id }}</span>
+                </div>
+                <div class="info-item">
+                    <label>Owner:</label>
+                    <span>{{ device.owner.username }}</span>
+                </div>
+                <div class="info-item">
+                    <label>Status:</label>
+                    <span class="status {% if device.is_active %}active{% else %}inactive{% endif %}">
+                        {% if device.is_active %}Active{% else %}Inactive{% endif %}
+                    </span>
+                </div>
+                <div class="info-item">
+                    <label>Created:</label>
+                    <span>{{ device.created_at|date:"M d, Y H:i" }}</span>
+                </div>
+                {% if device.last_seen %}
+                    <div class="info-item">
+                        <label>Last Seen:</label>
+                        <span>{{ device.last_seen|date:"M d, Y H:i" }}</span>
+                    </div>
+                {% endif %}
+            </div>
+            {% if device.description %}
+                <div class="description">
+                    <label>Description:</label>
+                    <p>{{ device.description }}</p>
+                </div>
+            {% endif %}
+        </div>
+
+        {% if can_manage %}
+            <div class="device-sharing-card">
+                <h3>Device Access</h3>
+                {% if device_shares %}
+                    <div class="shares-list">
+                        {% for share in device_shares %}
+                            <div class="share-item">
+                                <div class="share-info">
+                                    <span class="username">{{ share.user.username }}</span>
+                                    <span class="permission permission-{{ share.permission_level }}">
+                                        {{ share.get_permission_level_display }}
+                                    </span>
+                                </div>
+                                <div class="share-meta">
+                                    <span>Granted by {{ share.granted_by.username }}</span>
+                                    <span>{{ share.granted_at|date:"M d, Y" }}</span>
+                                </div>
+                                {% if can_manage %}
+                                    <a href="{% url 'iot:revoke_device_access' device.id share.user.id %}" 
+                                       class="revoke-btn"
+                                       onclick="return confirm('Revoke access for {{ share.user.username }}?')">
+                                        Revoke
+                                    </a>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="no-shares">This device hasn't been shared with anyone yet.</p>
+                {% endif %}
+                
+                <div class="share-actions">
+                    <a href="{% url 'iot:share_device' device.id %}" class="btn-primary">
+                        Share with Others
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    {% if can_control %}
+        <div class="device-control-card">
+            <h3>Device Control</h3>
+            <p>Control interface would be implemented here based on device type.</p>
+            <div class="control-buttons">
+                <button class="control-btn" onclick="controlDevice('{{ device.device_id }}', 'status')">
+                    Get Status
+                </button>
+                {% if device.device_type == 'light' %}
+                    <button class="control-btn" onclick="controlDevice('{{ device.device_id }}', 'toggle')">
+                        Toggle Light
+                    </button>
+                {% elif device.device_type == 'thermostat' %}
+                    <button class="control-btn" onclick="controlDevice('{{ device.device_id }}', 'temp_up')">
+                        Temperature +
+                    </button>
+                    <button class="control-btn" onclick="controlDevice('{{ device.device_id }}', 'temp_down')">
+                        Temperature -
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+function controlDevice(deviceId, action) {
+    // Placeholder for device control
+    alert(`Control command sent to device ${deviceId}: ${action}`);
+    // In real implementation, this would make API calls to control the IoT device
+}
+</script>
+
+<style>
+.device-detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.device-info-card,
+.device-sharing-card,
+.device-control-card {
+    background: #fff;
+    border: 1px solid #dadce0;
+    border-radius: 8px;
+    padding: 24px;
+}
+
+.device-control-card {
+    grid-column: 1 / -1;
+}
+
+.device-info-card h3,
+.device-sharing-card h3,
+.device-control-card h3 {
+    margin: 0 0 16px 0;
+    color: #202124;
+}
+
+.info-grid {
+    display: grid;
+    gap: 12px;
+}
+
+.info-item {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 12px;
+    align-items: center;
+}
+
+.info-item label {
+    font-weight: 500;
+    color: #5f6368;
+}
+
+.device-id {
+    font-family: monospace;
+    background: #f8f9fa;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.status.active {
+    color: #34a853;
+    font-weight: 500;
+}
+
+.status.inactive {
+    color: #ea4335;
+    font-weight: 500;
+}
+
+.description {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #f0f0f0;
+}
+
+.description label {
+    font-weight: 500;
+    color: #5f6368;
+    display: block;
+    margin-bottom: 8px;
+}
+
+.shares-list {
+    margin-bottom: 16px;
+}
+
+.share-item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid #f0f0f0;
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+
+.share-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.username {
+    font-weight: 500;
+    color: #202124;
+}
+
+.permission {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.permission-admin {
+    background: #e3f2fd;
+    color: #1565c0;
+}
+
+.permission-reader {
+    background: #f3e5f5;
+    color: #7b1fa2;
+}
+
+.share-meta {
+    font-size: 12px;
+    color: #5f6368;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.revoke-btn {
+    color: #ea4335;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 500;
+    align-self: start;
+}
+
+.revoke-btn:hover {
+    text-decoration: underline;
+}
+
+.no-shares {
+    color: #5f6368;
+    font-style: italic;
+    margin-bottom: 16px;
+}
+
+.control-buttons {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.control-btn {
+    background: #1a73e8;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 10px 16px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.15s ease-in-out;
+}
+
+.control-btn:hover {
+    background: #1557b0;
+}
+
+.btn-danger {
+    background: #ea4335;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 10px 16px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: background-color 0.15s ease-in-out;
+    display: inline-block;
+}
+
+.btn-danger:hover {
+    background: #d93025;
+    color: white;
+    text-decoration: none;
+}
+
+@media (max-width: 768px) {
+    .device-detail-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .header-content {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .header-actions {
+        justify-content: center;
+    }
+}
+</style>
+{% endblock %}

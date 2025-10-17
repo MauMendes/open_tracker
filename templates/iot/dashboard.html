@@ -1,0 +1,1514 @@
+{% extends 'base.html' %}
+
+{% block title %}Personal Dashboard - OpenTracker{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <!-- Dashboard Header -->
+    <div class="dashboard-header">
+        <div class="header-content">
+            <h1 class="dashboard-title">
+                <i class="dashboard-icon">📊</i>
+                Personal Dashboard
+            </h1>
+            <p class="dashboard-subtitle">Real-time monitoring of your IoT devices</p>
+        </div>
+        <div class="header-stats">
+            <div class="stat-card online">
+                <div class="stat-value">{{ online_devices }}</div>
+                <div class="stat-label">Online</div>
+            </div>
+            <div class="stat-card offline">
+                <div class="stat-value">{{ offline_devices }}</div>
+                <div class="stat-label">Offline</div>
+            </div>
+            <div class="stat-card total">
+                <div class="stat-value">{{ total_devices }}</div>
+                <div class="stat-label">Total Devices</div>
+            </div>
+        </div>
+    </div>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Manual Refresh Controls -->
+    <div class="dashboard-controls" style="display: flex; justify-content: flex-end; margin-bottom: 20px; gap: 10px;">
+        <button class="btn btn-primary btn-sm" onclick="refreshDashboard()" title="Refresh dashboard data">
+            🔄 Refresh Now
+        </button>
+    </div>
+
+    <!-- Device Selector Panel -->
+    <div class="device-selector-panel" id="deviceSelectorPanel" style="display: none;">
+        <div class="selector-content">
+            <div class="selector-header">
+                <h3>Add Devices to Your Dashboard</h3>
+                <button onclick="toggleDeviceSelector()" class="btn-close">&times;</button>
+            </div>
+            <div class="device-search">
+                <input type="text" id="deviceSearchInput" placeholder="Search devices..." oninput="filterDevices()">
+                <i class="search-icon">🔍</i>
+            </div>
+            <div class="available-devices" id="availableDevices">
+                {% for device in available_devices %}
+                <div class="device-option">
+                    <div class="device-option-info">
+                        <span class="device-option-icon">
+                            {% if device.device_type == 'sensor' %}🌡️
+                            {% elif device.device_type == 'thermostat' %}🌡️
+                            {% elif device.device_type == 'light' %}💡
+                            {% elif device.device_type == 'camera' %}📷
+                            {% elif device.device_type == 'lock' %}🔒
+                            {% elif device.device_type == 'speaker' %}🔊
+                            {% elif device.device_type == 'hub' %}🏠
+                            {% elif device.device_type == 'actuator' %}⚙️
+                            {% elif device.device_type == 'vehicle' %}🚗
+                            {% else %}📱
+                            {% endif %}
+                        </span>
+                        <div>
+                            <div class="device-option-name">{{ device.name }}</div>
+                            <div class="device-option-group">{{ device.group.name }}</div>
+                        </div>
+                    </div>
+                    <a href="{% url 'iot:add_to_dashboard' device.id %}" class="btn-add-device">Add</a>
+                </div>
+                {% empty %}
+                <div class="no-available-devices">
+                    <p>All your accessible devices are already on the dashboard!</p>
+                    <a href="{% url 'iot:group_devices' %}" class="btn-secondary">Manage Devices</a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Widgets Grid -->
+    <div class="dashboard-widgets">
+        <!-- Add to Dashboard Card -->
+        <div class="widget-card add-device-card" onclick="toggleDeviceSelector()">
+            <div class="add-device-content">
+                <div class="add-device-icon">
+                    <i class="plus-icon">➕</i>
+                </div>
+                <div class="add-device-text">
+                    <h4>Add to Dashboard</h4>
+                    <p>Add devices to monitor</p>
+                </div>
+            </div>
+        </div>
+        
+        {% for widget in dashboard_widgets %}
+        <div class="widget-card {{ widget.widget_type }}" data-device-id="{{ widget.device.id }}">
+            <div class="widget-header">
+                <div class="widget-title">
+                    <span class="device-icon">
+                        {% if widget.device.device_type == 'sensor' %}🌡️
+                        {% elif widget.device.device_type == 'thermostat' %}🌡️
+                        {% elif widget.device.device_type == 'light' %}💡
+                        {% elif widget.device.device_type == 'camera' %}📷
+                        {% elif widget.device.device_type == 'lock' %}🔒
+                        {% elif widget.device.device_type == 'speaker' %}🔊
+                        {% elif widget.device.device_type == 'hub' %}🏠
+                        {% elif widget.device.device_type == 'actuator' %}⚙️
+                        {% elif widget.device.device_type == 'vehicle' %}🚗
+                        {% else %}📱
+                        {% endif %}
+                    </span>
+                    <div>
+                        <h4>{{ widget.device.name }}</h4>
+                        <p>{{ widget.device.group.name }}</p>
+                    </div>
+                </div>
+                <div class="widget-status {{ widget.status }}">
+                    <div class="status-indicator"></div>
+                    <span>{{ widget.status|title }}</span>
+                </div>
+            </div>
+
+            <div class="widget-content">
+                {% if widget.widget_type == 'gauge' or widget.widget_type == 'temperature_gauge' %}
+                    <!-- Temperature/Sensor Gauge -->
+                    <div class="gauge-container">
+                        {% for data in widget.latest_data %}
+                        <div class="gauge-wrapper">
+                            <canvas class="gauge-canvas" 
+                                    data-value="{{ data.latest_value }}" 
+                                    data-type="{{ data.data_type }}"
+                                    data-unit="{{ data.unit }}"
+                                    width="120" height="120"></canvas>
+                            <div class="gauge-label">{{ data.data_type|title }}</div>
+                        </div>
+                        {% empty %}
+                        <div class="no-data">No sensor data available</div>
+                        {% endfor %}
+                    </div>
+                    
+                {% elif widget.widget_type == 'switch_control' %}
+                    <!-- Light/Switch Control -->
+                    <div class="switch-control">
+                        <div class="light-display">
+                            <div class="light-bulb {{ widget.status }}"></div>
+                            <div class="brightness-meter">
+                                {% for data in widget.latest_data %}
+                                    {% if data.data_type == 'brightness' %}
+                                    <div class="brightness-bar">
+                                        <div class="brightness-fill" style="width: {{ data.latest_value }}%"></div>
+                                    </div>
+                                    <span>{{ data.latest_value }}% Brightness</span>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="light-controls">
+                            <button class="btn-toggle {{ widget.status }}">
+                                {% if widget.status == 'online' %}Turn Off{% else %}Turn On{% endif %}
+                            </button>
+                        </div>
+                    </div>
+
+                {% elif widget.widget_type == 'camera_feed' %}
+                    <!-- Camera Display -->
+                    <div class="camera-display">
+                        <div class="camera-frame">
+                            <div class="camera-placeholder">
+                                <i class="camera-icon">📹</i>
+                                <p>Live Feed</p>
+                            </div>
+                        </div>
+                        <div class="camera-info">
+                            {% for data in widget.latest_data %}
+                                {% if data.data_type == 'motion' %}
+                                <div class="motion-indicator {{ data.latest_value|yesno:'detected,clear' }}">
+                                    Motion: {{ data.latest_value|yesno:'Detected,Clear' }}
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                {% elif widget.widget_type == 'lock_status' %}
+                    <!-- Lock Status -->
+                    <div class="lock-display">
+                        <div class="lock-visual">
+                            <div class="lock-icon {{ widget.status }}">🔒</div>
+                            <div class="lock-status-text">
+                                {% for data in widget.latest_data %}
+                                    {% if data.data_type == 'locked' %}
+                                        {{ data.latest_value|yesno:'Locked,Unlocked' }}
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="lock-controls">
+                            <button class="btn-lock">Lock</button>
+                            <button class="btn-unlock">Unlock</button>
+                        </div>
+                    </div>
+
+                {% elif widget.widget_type == 'vehicle_status' %}
+                    <!-- Vehicle Status List Display -->
+                    <div class="vehicle-list-display">
+                        <div class="vehicle-data-list">
+                            {% for data in widget.latest_data %}
+                                {% if data.data_type == 'location' %}
+                                <div class="vehicle-data-item">
+                                    <div class="data-content">
+                                        <div class="data-label">Location</div>
+                                        <div class="data-value">{{ data.unit }}</div>
+                                    </div>
+                                </div>
+                                {% elif data.data_type == 'speed' %}
+                                <div class="vehicle-data-item">
+                                    <div class="data-content">
+                                        <div class="data-label">Speed</div>
+                                        <div class="data-value">{{ data.latest_value|floatformat:0 }} {{ data.unit|default:'km/h' }}</div>
+                                    </div>
+                                </div>
+                                {% elif data.data_type == 'ignition' %}
+                                <div class="vehicle-data-item">
+                                    <div class="data-content">
+                                        <div class="data-label">Ignition</div>
+                                        <div class="data-value {{ data.latest_value|yesno:'ignition-on,ignition-off' }}">
+                                            {{ data.latest_value|yesno:'ON,OFF' }}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                {% else %}
+                    <!-- Generic Status Display -->
+                    <div class="generic-display">
+                        <div class="data-grid">
+                            {% for data in widget.latest_data %}
+                            <div class="data-item">
+                                <div class="data-label">{{ data.data_type|title }}</div>
+                                <div class="data-value">{{ data.latest_value }} {{ data.unit }}</div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+
+
+            </div>
+
+            <div class="widget-footer">
+                <span class="last-update">
+                    Last update: <span class="timestamp" data-device-id="{{ widget.device.id }}">
+                        {% if widget.device.last_seen %}{{ widget.device.last_seen|date:"M d, H:i" }}{% else %}Never{% endif %}
+                    </span>
+                </span>
+                <div class="widget-actions">
+                    <a href="{% url 'iot:device_detail' widget.device.id %}?source=dashboard" class="btn-details">Details</a>
+                    <a href="{% url 'iot:remove_from_dashboard' widget.device.id %}" 
+                       class="btn-hide">Hide</a>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="empty-dashboard">
+            <div class="empty-content">
+                <div class="empty-icon">📱</div>
+                <h3>Your Personal Dashboard Awaits</h3>
+                <p>Start monitoring your IoT devices by adding them to your dashboard.</p>
+                <div class="empty-features">
+                    <div class="feature-item">
+                        <span class="feature-icon">📊</span>
+                        <span>Real-time sensor data</span>
+                    </div>
+                    <div class="feature-item">
+                        <span class="feature-icon">🎛️</span>
+                        <span>Device controls</span>
+                    </div>
+                    <div class="feature-item">
+                        <span class="feature-icon">📈</span>
+                        <span>Historical charts</span>
+                    </div>
+                </div>
+                <button onclick="toggleDeviceSelector()" class="btn-primary-large">
+                    <i class="btn-icon">➕</i>
+                    Add Your First Device
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<style>
+.dashboard-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.dashboard-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 16px;
+    padding: 32px;
+    margin-bottom: 32px;
+    color: white;
+    box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+}
+
+.dashboard-title {
+    font-size: 2.5rem;
+    margin: 0 0 8px 0;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.dashboard-icon {
+    font-size: 2rem;
+}
+
+.dashboard-subtitle {
+    font-size: 1.1rem;
+    opacity: 0.9;
+    margin: 0;
+}
+
+.header-stats {
+    display: flex;
+    gap: 20px;
+}
+
+.stat-card {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    backdrop-filter: blur(10px);
+    min-width: 80px;
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+.stat-card.online .stat-value { color: #4ade80; }
+.stat-card.offline .stat-value { color: #f87171; }
+.stat-card.total .stat-value { color: #60a5fa; }
+
+
+
+.dashboard-widgets {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 380px);
+    gap: 24px;
+    justify-content: start;
+}
+
+.widget-card {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+    border: 1px solid #e5e7eb;
+    height: 400px;
+    display: flex;
+    flex-direction: column;
+}
+
+.widget-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+}
+
+/* Add to Dashboard Card Styles */
+.add-device-card {
+    background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+    border: 2px dashed #d1d5db;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.add-device-card:hover {
+    border-color: #3b82f6;
+    background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(59, 130, 246, 0.15);
+}
+
+.add-device-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+.add-device-icon {
+    width: 80px;
+    height: 80px;
+    background: white;
+    border: 3px solid #3b82f6;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
+    transition: all 0.3s ease;
+}
+
+.add-device-card:hover .add-device-icon {
+    transform: scale(1.1);
+    box-shadow: 0 12px 35px rgba(59, 130, 246, 0.4);
+}
+
+.plus-icon {
+    font-size: 2.5rem;
+    color: #3b82f6;
+}
+
+.add-device-text h4 {
+    margin: 0 0 8px 0;
+    color: #374151;
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+.add-device-text p {
+    margin: 0;
+    color: #6b7280;
+    font-size: 0.95rem;
+}
+
+.widget-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+}
+
+.widget-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.device-icon {
+    font-size: 1.5rem;
+}
+
+.widget-title h4 {
+    margin: 0;
+    color: #374151;
+    font-size: 1.1rem;
+}
+
+.widget-title p {
+    margin: 4px 0 0 0;
+    color: #6b7280;
+    font-size: 0.9rem;
+}
+
+.widget-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.widget-status.online {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.widget-status.offline {
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+.status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.widget-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    overflow: hidden;
+    max-width: 100%;
+}
+
+.gauge-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    justify-content: center;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.gauge-wrapper {
+    text-align: center;
+    flex: 0 1 calc(50% - 7.5px);
+    max-width: 140px;
+}
+
+.gauge-canvas {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+    height: auto;
+}
+
+.gauge-label {
+    margin-top: 8px;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.switch-control {
+    text-align: center;
+}
+
+.light-display {
+    margin-bottom: 20px;
+}
+
+.light-bulb {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    margin: 0 auto 16px;
+    position: relative;
+    background: #f3f4f6;
+    transition: all 0.3s ease;
+}
+
+.light-bulb.online {
+    background: radial-gradient(circle, #fbbf24 0%, #f59e0b 100%);
+    box-shadow: 0 0 30px rgba(251, 191, 36, 0.5);
+}
+
+.brightness-meter {
+    margin-top: 16px;
+}
+
+.brightness-bar {
+    width: 100%;
+    height: 8px;
+    background: #e5e7eb;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.brightness-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #fbbf24 0%, #f59e0b 100%);
+    transition: width 0.3s ease;
+}
+
+.btn-toggle {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-toggle.online {
+    background: #ef4444;
+    color: white;
+}
+
+.btn-toggle.offline {
+    background: #10b981;
+    color: white;
+}
+
+.camera-display {
+    text-align: center;
+}
+
+.camera-frame {
+    width: 100%;
+    height: 160px;
+    background: #111827;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+    position: relative;
+    overflow: hidden;
+}
+
+.camera-placeholder {
+    color: #6b7280;
+}
+
+.camera-icon {
+    font-size: 2rem;
+    display: block;
+    margin-bottom: 8px;
+}
+
+.motion-indicator {
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: 500;
+    display: inline-block;
+}
+
+.motion-indicator.detected {
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+.motion-indicator.clear {
+    background: #f0fdf4;
+    color: #166534;
+}
+
+.lock-display {
+    text-align: center;
+}
+
+.lock-visual {
+    margin-bottom: 20px;
+}
+
+.lock-icon {
+    font-size: 3rem;
+    margin-bottom: 12px;
+    display: block;
+}
+
+.lock-status-text {
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: #374151;
+}
+
+.lock-controls {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin: 10px 0;
+    flex-wrap: wrap;
+}
+
+.btn-lock, .btn-unlock {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-lock {
+    background: #ef4444;
+    color: white;
+}
+
+.btn-unlock {
+    background: #10b981;
+    color: white;
+}
+
+.generic-display .data-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 16px;
+}
+
+.data-item {
+    text-align: center;
+    padding: 16px;
+    background: #f8fafc;
+    border-radius: 12px;
+}
+
+.data-label {
+    font-size: 0.9rem;
+    color: #6b7280;
+    margin-bottom: 4px;
+}
+
+.data-value {
+    font-size: 1.4rem;
+    font-weight: bold;
+    color: #374151;
+}
+
+
+
+.widget-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 16px;
+    border-top: 1px solid #e5e7eb;
+    margin-top: auto;
+}
+
+.last-update {
+    color: #6b7280;
+    font-size: 0.9rem;
+}
+
+.btn-details {
+    padding: 8px 16px;
+    background: #3b82f6;
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    transition: background 0.2s ease;
+}
+
+.btn-details:hover {
+    background: #2563eb;
+    text-decoration: none;
+}
+
+.widget-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.btn-delete {
+    padding: 6px 12px;
+    background: #ef4444;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    transition: background 0.2s ease;
+}
+
+.btn-hide {
+    padding: 6px 12px;
+    background: #f59e0b;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    transition: background 0.2s ease;
+}
+
+.btn-hide:hover {
+    background: #d97706;
+    text-decoration: none;
+}
+
+/* Vehicle List Display Styles */
+.vehicle-list-display {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    height: 100%;
+}
+
+.vehicle-data-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+}
+
+.vehicle-data-item {
+    padding: 14px 16px;
+    background: #f8fafc;
+    border-radius: 8px;
+    border-left: 4px solid #e5e7eb;
+    transition: all 0.2s ease;
+}
+
+.vehicle-data-item:hover {
+    background: #f1f5f9;
+    border-left-color: #3b82f6;
+}
+
+.vehicle-data-item .data-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.vehicle-data-item .data-label {
+    font-weight: 600;
+    color: #6b7280;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    line-height: 1;
+}
+
+.vehicle-data-item .data-value {
+    font-weight: 600;
+    color: #1f2937;
+    font-size: 1.1rem;
+    line-height: 1.3;
+}
+
+.vehicle-data-item .data-value.ignition-on {
+    color: #059669;
+    font-weight: 700;
+}
+
+.vehicle-data-item .data-value.ignition-off {
+    color: #dc2626;
+    font-weight: 700;
+}
+
+.vehicle-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
+    padding-top: 12px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.btn-track, .btn-history {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: white;
+    color: #374151;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-track:hover {
+    background: #eff6ff;
+    border-color: #3b82f6;
+    color: #1d4ed8;
+}
+
+.btn-history:hover {
+    background: #f0fdf4;
+    border-color: #10b981;
+    color: #047857;
+}
+
+/* Device Selector Panel */
+.device-selector-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.selector-content {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.selector-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.selector-header h3 {
+    margin: 0;
+    color: #374151;
+}
+
+.btn-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: background 0.2s ease;
+}
+
+.btn-close:hover {
+    background: #f3f4f6;
+}
+
+.device-search {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.device-search input {
+    width: 100%;
+    padding: 12px 16px 12px 45px;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s ease;
+    box-sizing: border-box;
+}
+
+.device-search input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.search-icon {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6b7280;
+    font-size: 16px;
+}
+
+.available-devices {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.device-option {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    background: #f8fafc;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    transition: all 0.2s ease;
+}
+
+.device-option:hover {
+    background: #f1f5f9;
+    border-color: #3b82f6;
+}
+
+.device-option-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.device-option-icon {
+    font-size: 1.5rem;
+}
+
+.device-option-name {
+    font-weight: 600;
+    color: #374151;
+}
+
+.device-option-group {
+    font-size: 0.9rem;
+    color: #6b7280;
+}
+
+.btn-add-device {
+    padding: 8px 16px;
+    background: #10b981;
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: background 0.2s ease;
+}
+
+.btn-add-device:hover {
+    background: #059669;
+    text-decoration: none;
+}
+
+.no-available-devices {
+    text-align: center;
+    padding: 40px 20px;
+    color: #6b7280;
+}
+
+.empty-dashboard {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 80px 20px;
+    color: #6b7280;
+}
+
+.empty-content {
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.empty-features {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    margin: 32px 0;
+    flex-wrap: wrap;
+}
+
+.feature-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #4b5563;
+    font-weight: 500;
+}
+
+.feature-icon {
+    font-size: 1.2em;
+}
+
+.btn-primary-large {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 16px 32px;
+    border-radius: 12px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+}
+
+.btn-primary-large:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+}
+
+.btn-icon {
+    font-size: 1em;
+}
+
+.empty-icon {
+    font-size: 4rem;
+    margin-bottom: 20px;
+}
+
+.empty-dashboard h3 {
+    color: #374151;
+    margin-bottom: 12px;
+}
+
+.btn-primary {
+    display: inline-block;
+    padding: 12px 24px;
+    background: #3b82f6;
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 500;
+    margin-top: 16px;
+    transition: background 0.2s ease;
+}
+
+.btn-primary:hover {
+    background: #2563eb;
+    text-decoration: none;
+}
+
+.no-data {
+    color: #6b7280;
+    font-style: italic;
+    text-align: center;
+    padding: 40px;
+}
+
+.btn-secondary {
+    display: inline-block;
+    padding: 12px 24px;
+    background: #6b7280;
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 500;
+    margin: 8px;
+    transition: background 0.2s ease;
+}
+
+.btn-secondary:hover {
+    background: #4b5563;
+    text-decoration: none;
+}
+
+.empty-actions {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+
+
+@media (max-width: 768px) {
+    .dashboard-header {
+        flex-direction: column;
+        gap: 20px;
+        text-align: center;
+        padding: 24px;
+        margin-bottom: 24px;
+    }
+    
+    .header-stats {
+        justify-content: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    
+    .stat-card {
+        min-width: 60px;
+        padding: 16px 12px;
+    }
+    
+
+    
+    .empty-features {
+        flex-direction: column;
+        gap: 16px;
+        align-items: center;
+    }
+    
+    .dashboard-widgets {
+        grid-template-columns: 1fr;
+    }
+    
+    .gauge-container {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+
+}
+</style>
+
+<script>
+// Gauge drawing function
+function drawGauge(canvas, value, dataType, unit, max = 100) {
+    const ctx = canvas.getContext('2d');
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const radius = Math.min(centerX, centerY) - 20;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Determine max value based on data type
+    if (dataType === 'temperature') max = 50;
+    else if (dataType === 'humidity') max = 100;
+    else if (dataType === 'pressure') max = 1100;
+    else if (dataType === 'light') max = 1000;
+    
+    // Background arc
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, Math.PI * 0.75, Math.PI * 2.25);
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.lineWidth = 20;
+    ctx.stroke();
+    
+    // Value arc
+    const angle = (value / max) * (Math.PI * 1.5);
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, Math.PI * 0.75, Math.PI * 0.75 + angle);
+    
+    // Color based on data type
+    let gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+    if (dataType === 'temperature') {
+        gradient.addColorStop(0, '#3b82f6');
+        gradient.addColorStop(0.5, '#fbbf24');
+        gradient.addColorStop(1, '#ef4444');
+    } else if (dataType === 'humidity') {
+        gradient.addColorStop(0, '#06b6d4');
+        gradient.addColorStop(1, '#0891b2');
+    } else {
+        gradient.addColorStop(0, '#10b981');
+        gradient.addColorStop(1, '#059669');
+    }
+    
+    ctx.strokeStyle = gradient;
+    ctx.lineWidth = 20;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    
+    // Center text
+    ctx.fillStyle = '#374151';
+    ctx.font = 'bold 24px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(value.toFixed(1), centerX, centerY - 5);
+    
+    ctx.font = '14px Arial';
+    ctx.fillStyle = '#6b7280';
+    ctx.fillText(unit, centerX, centerY + 20);
+}
+
+// Mini chart drawing function
+function drawMiniChart(canvas, data) {
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    
+    ctx.clearRect(0, 0, width, height);
+    
+    // If no data, draw a flat line
+    if (!data || data.length === 0) {
+        ctx.beginPath();
+        ctx.strokeStyle = '#e5e7eb';
+        ctx.lineWidth = 1;
+        ctx.moveTo(0, height / 2);
+        ctx.lineTo(width, height / 2);
+        ctx.stroke();
+        
+        // Add "No Data" text
+        ctx.fillStyle = '#9ca3af';
+        ctx.font = '10px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('No Data', width / 2, height / 2 - 5);
+        return;
+    }
+    
+    const values = data.map(d => parseFloat(d.value) || 0);
+    const max = Math.max(...values);
+    const min = Math.min(...values);
+    const range = max - min || 1;
+    
+    ctx.beginPath();
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 2;
+    
+    data.forEach((point, index) => {
+        const x = data.length > 1 ? (index / (data.length - 1)) * width : width / 2;
+        const y = height - ((parseFloat(point.value) - min) / range) * height;
+        
+        if (index === 0) {
+            ctx.moveTo(x, y);
+        } else {
+            ctx.lineTo(x, y);
+        }
+    });
+    
+    ctx.stroke();
+    
+    // Fill area under curve
+    if (data.length > 1) {
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = '#3b82f6';
+        ctx.lineTo(width, height);
+        ctx.lineTo(0, height);
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 1;
+    }
+}
+
+// Device selector functions
+function toggleDeviceSelector() {
+    const panel = document.getElementById('deviceSelectorPanel');
+    if (panel.style.display === 'none' || !panel.style.display) {
+        panel.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        // Clear search when opening
+        const searchInput = document.getElementById('deviceSearchInput');
+        if (searchInput) {
+            searchInput.value = '';
+            filterDevices();
+        }
+    } else {
+        panel.style.display = 'none';
+        document.body.style.overflow = 'auto';
+    }
+}
+
+// Filter devices based on search input
+function filterDevices() {
+    const searchTerm = document.getElementById('deviceSearchInput').value.toLowerCase();
+    const deviceOptions = document.querySelectorAll('.device-option');
+    const noDevicesMessage = document.querySelector('.no-available-devices');
+    let visibleCount = 0;
+    
+    deviceOptions.forEach(option => {
+        const deviceName = option.querySelector('.device-option-name').textContent.toLowerCase();
+        const deviceGroup = option.querySelector('.device-option-group').textContent.toLowerCase();
+        
+        if (deviceName.includes(searchTerm) || deviceGroup.includes(searchTerm)) {
+            option.style.display = 'flex';
+            visibleCount++;
+        } else {
+            option.style.display = 'none';
+        }
+    });
+    
+    // Show/hide no devices message based on search results
+    if (noDevicesMessage) {
+        if (visibleCount === 0 && searchTerm !== '') {
+            noDevicesMessage.style.display = 'block';
+            noDevicesMessage.querySelector('p').textContent = 'No devices found matching your search.';
+        } else if (visibleCount === 0 && searchTerm === '') {
+            noDevicesMessage.style.display = 'block';
+            noDevicesMessage.querySelector('p').textContent = 'All your accessible devices are already on the dashboard!';
+        } else {
+            noDevicesMessage.style.display = 'none';
+        }
+    }
+}
+
+// Close selector when clicking outside
+document.addEventListener('click', function(e) {
+    const panel = document.getElementById('deviceSelectorPanel');
+    if (e.target === panel) {
+        toggleDeviceSelector();
+    }
+});
+
+// Initialize dashboard
+document.addEventListener('DOMContentLoaded', function() {
+    // Draw all gauges
+    document.querySelectorAll('.gauge-canvas').forEach(canvas => {
+        const value = parseFloat(canvas.dataset.value) || 0;
+        const dataType = canvas.dataset.type;
+        const unit = canvas.dataset.unit || '';
+        drawGauge(canvas, value, dataType, unit);
+    });
+    
+    // Setup real-time updates
+    setInterval(updateDashboard, 30000); // Update every 30 seconds
+});
+
+// Real-time dashboard updates
+function updateDashboard() {
+    document.querySelectorAll('.widget-card').forEach(card => {
+        const deviceId = card.dataset.deviceId;
+        if (deviceId) {
+            fetch(`/iot/api/dashboard/${deviceId}/`)
+                .then(response => response.json())
+                .then(data => {
+                    updateWidgetData(card, data);
+                })
+                .catch(error => console.error('Error updating widget:', error));
+        }
+    });
+}
+
+function updateWidgetData(card, data) {
+    // Update timestamp
+    const timestampEl = card.querySelector(`.timestamp[data-device-id="${data.device_id}"]`);
+    if (timestampEl && data.last_seen) {
+        const date = new Date(data.last_seen);
+        timestampEl.textContent = date.toLocaleString();
+    }
+    
+    // Update status
+    const statusEl = card.querySelector('.widget-status');
+    if (statusEl) {
+        statusEl.className = `widget-status ${data.status}`;
+        statusEl.querySelector('span').textContent = data.status.charAt(0).toUpperCase() + data.status.slice(1);
+    }
+    
+    // Update gauges
+    card.querySelectorAll('.gauge-canvas').forEach(canvas => {
+        const dataType = canvas.dataset.type;
+        const latestData = data.latest_data.find(d => d.data_type === dataType);
+        if (latestData) {
+            canvas.dataset.value = latestData.value;
+            canvas.dataset.unit = latestData.unit;
+            drawGauge(canvas, latestData.value, dataType, latestData.unit);
+        }
+    });
+    
+
+}
+
+// Real-time dashboard refresh functionality
+let refreshInterval;
+let isRefreshing = false;
+
+function startAutoRefresh() {
+    // Auto-refresh every 30 seconds
+    refreshInterval = setInterval(refreshDashboard, 30000);
+    console.log('🔄 Auto-refresh started - updating every 30 seconds');
+}
+
+function stopAutoRefresh() {
+    if (refreshInterval) {
+        clearInterval(refreshInterval);
+        refreshInterval = null;
+        console.log('⏸️ Auto-refresh stopped');
+    }
+}
+
+function refreshDashboard() {
+    if (isRefreshing) {
+        return; // Prevent overlapping requests
+    }
+    
+    isRefreshing = true;
+    console.log('🔄 Refreshing dashboard data...');
+    
+    // Add visual indicator
+    const refreshIndicator = document.createElement('div');
+    refreshIndicator.className = 'refresh-indicator';
+    refreshIndicator.innerHTML = '🔄 Updating...';
+    refreshIndicator.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 12px;
+        z-index: 1000;
+        opacity: 0.9;
+        transition: opacity 0.3s ease;
+    `;
+    document.body.appendChild(refreshIndicator);
+    
+    // Refresh the page immediately to get latest data
+    setTimeout(() => {
+        if (refreshIndicator && refreshIndicator.parentNode) {
+            refreshIndicator.parentNode.removeChild(refreshIndicator);
+        }
+        isRefreshing = false;
+        window.location.reload();
+    }, 1000);
+}
+
+// Initialize auto-refresh functionality
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('✅ Dashboard auto-refresh initialized - updating every 30 seconds');
+    
+    // Initialize all charts on page load
+    initializeCharts();
+    
+    // Start auto-refresh
+    startAutoRefresh();
+});
+
+// Stop refresh when user is navigating away
+window.addEventListener('beforeunload', function() {
+    stopAutoRefresh();
+});
+
+function initializeCharts() {
+    // Initialize all gauges
+    document.querySelectorAll('.gauge-canvas').forEach(canvas => {
+        const value = parseFloat(canvas.dataset.value) || 0;
+        const dataType = canvas.dataset.type;
+        const unit = canvas.dataset.unit || '';
+        drawGauge(canvas, value, dataType, unit);
+    });
+    
+
+}
+</script>
+{% endblock %}

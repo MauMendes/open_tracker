@@ -1,0 +1,177 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if is_group_selection %}Select Group{% else %}Create Device{% if group %} - {{ group.name }}{% endif %}{% endif %}{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+    <div class="auth-card">
+        {% if is_group_selection %}
+            <div class="auth-header">
+                <h1 class="auth-title">Select Group</h1>
+                <p class="auth-subtitle">Choose a group for the new device</p>
+            </div>
+            
+            <div class="group-selection">
+                {% for group in available_groups %}
+                    <a href="?group_id={{ group.id }}" class="group-option">
+                        <div class="group-option-info">
+                            <h3>{{ group.name }}</h3>
+                            <p>{{ group.description|default:"No description" }}</p>
+                            <div class="group-stats">
+                                <span>{{ group.memberships.count }} members</span>
+                                <span>{{ group.devices.count }} devices</span>
+                            </div>
+                        </div>
+                    </a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="auth-header">
+                <h1 class="auth-title">Add New Device</h1>
+                <p class="auth-subtitle">{% if group %}to {{ group.name }}{% endif %}</p>
+            </div>
+            
+            <form method="post" class="auth-form">
+                {% csrf_token %}
+                {% if is_admin and group %}
+                    <input type="hidden" name="group_id" value="{{ group.id }}">
+                {% endif %}
+            
+            <div class="form-group">
+                <input type="text" 
+                       name="name" 
+                       id="name" 
+                       class="form-input" 
+                       placeholder=" " 
+                       value="{{ form.name.value|default:'' }}"
+                       required>
+                <label for="name" class="form-label">Device Name</label>
+                {% if form.name.errors %}
+                    <div class="error-message">{{ form.name.errors.0 }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <select name="device_type" 
+                        id="device_type" 
+                        class="form-input" 
+                        required>
+                    <option value="">Select device type...</option>
+                    {% for value, label in form.device_type.field.choices %}
+                        <option value="{{ value }}" {% if form.device_type.value == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <label for="device_type" class="form-label select-label">Device Type</label>
+                {% if form.device_type.errors %}
+                    <div class="error-message">{{ form.device_type.errors.0 }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <input type="text" 
+                       name="device_id" 
+                       id="device_id" 
+                       class="form-input" 
+                       placeholder=" " 
+                       value="{{ form.device_id.value|default:'' }}"
+                       required>
+                <label for="device_id" class="form-label">Device ID</label>
+                <div class="form-help">Unique identifier (MAC address, serial number, etc.)</div>
+                {% if form.device_id.errors %}
+                    <div class="error-message">{{ form.device_id.errors.0 }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <textarea name="description" 
+                         id="description" 
+                         class="form-input" 
+                         placeholder=" " 
+                         rows="3">{{ form.description.value|default:'' }}</textarea>
+                <label for="description" class="form-label">Description</label>
+                <div class="form-help">Optional description of the device</div>
+                {% if form.description.errors %}
+                    <div class="error-message">{{ form.description.errors.0 }}</div>
+                {% endif %}
+            </div>
+            
+                <button type="submit" class="btn-primary">Create Device</button>
+            </form>
+            
+            <div class="auth-footer">
+                <p><a href="{% url 'iot:group_devices' %}" class="link">← Back to devices</a></p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.group-selection {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 24px 0;
+}
+
+.group-option {
+    background: #f8f9fa;
+    border: 2px solid #e8eaed;
+    border-radius: 8px;
+    padding: 20px;
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.15s ease-in-out;
+    display: block;
+}
+
+.group-option:hover {
+    background: #f1f3f4;
+    border-color: #1a73e8;
+    text-decoration: none;
+    color: inherit;
+}
+
+.group-option-info h3 {
+    margin: 0 0 8px 0;
+    color: #202124;
+    font-size: 18px;
+}
+
+.group-option-info p {
+    margin: 0 0 12px 0;
+    color: #5f6368;
+    font-size: 14px;
+}
+
+.group-stats {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: #5f6368;
+}
+
+.select-label {
+    background: white;
+    padding: 0 4px;
+}
+
+select.form-input {
+    color: #202124;
+}
+
+select.form-input:focus + .select-label,
+select.form-input:not([value=""]) + .select-label {
+    transform: translateY(-14px) scale(0.75);
+    color: #1a73e8;
+    background-color: #fff;
+    padding: 0 4px;
+}
+</style>
+{% endblock %}

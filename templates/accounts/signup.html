@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+
+{% block title %}Create account - Django Auth{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <h1 class="auth-title">Create account</h1>
+            <p class="auth-subtitle">to continue to Django Auth</p>
+        </div>
+        
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+        
+        <form method="post" class="auth-form">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <input type="text" 
+                       name="username" 
+                       id="username" 
+                       class="form-input" 
+                       placeholder=" " 
+                       value="{{ form.username.value|default:'' }}"
+                       required>
+                <label for="username" class="form-label">Username</label>
+                {% if form.username.errors %}
+                    <div class="error-message">{{ form.username.errors.0 }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <input type="email" 
+                       name="email" 
+                       id="email" 
+                       class="form-input" 
+                       placeholder=" " 
+                       value="{{ form.email.value|default:'' }}">
+                <label for="email" class="form-label">Email (optional)</label>
+                {% if form.email.errors %}
+                    <div class="error-message">{{ form.email.errors.0 }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <textarea name="group_request_info" 
+                         id="group_request_info" 
+                         class="form-input" 
+                         placeholder=" " 
+                         rows="3"
+                         required>{{ form.group_request_info.value|default:'' }}</textarea>
+                <label for="group_request_info" class="form-label">Group Request Information</label>
+                <div class="form-help">Tell us which group you want to join and why you need access.</div>
+                {% if form.group_request_info.errors %}
+                    <div class="error-message">{{ form.group_request_info.errors.0 }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <input type="password" 
+                       name="password1" 
+                       id="password1" 
+                       class="form-input" 
+                       placeholder=" " 
+                       required>
+                <label for="password1" class="form-label">Password</label>
+                <button type="button" class="password-toggle" onclick="togglePassword('password1', this)">Show</button>
+                {% if form.password1.errors %}
+                    <div class="error-message">{{ form.password1.errors.0 }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <input type="password" 
+                       name="password2" 
+                       id="password2" 
+                       class="form-input" 
+                       placeholder=" " 
+                       required>
+                <label for="password2" class="form-label">Confirm password</label>
+                <button type="button" class="password-toggle" onclick="togglePassword('password2', this)">Show</button>
+                {% if form.password2.errors %}
+                    <div class="error-message">{{ form.password2.errors.0 }}</div>
+                {% endif %}
+            </div>
+            
+            {% if form.non_field_errors %}
+                <div class="error-message">{{ form.non_field_errors.0 }}</div>
+            {% endif %}
+            
+            <button type="submit" class="btn-primary">Create account</button>
+        </form>
+        
+        <div class="auth-footer">
+            <p>Already have an account? <a href="{% url 'accounts:login' %}" class="link">Sign in</a></p>
+        </div>
+    </div>
+</div>
+
+<script>
+function togglePassword(inputId, button) {
+    const passwordInput = document.getElementById(inputId);
+    
+    if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        button.textContent = 'Hide';
+    } else {
+        passwordInput.type = 'password';
+        button.textContent = 'Show';
+    }
+}
+</script>
+{% endblock %}

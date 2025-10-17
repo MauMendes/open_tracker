@@ -1,0 +1,398 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if is_admin_view %}Group Management - Admin View{% else %}Group Management{% endif %} - OpenTracker{% endblock %}
+
+{% block content %}
+<div class="management-container">
+    <div class="page-header">
+        <div class="page-title">
+            {% if is_admin_view %}
+                <h1>Group Management</h1>
+                <p>Manage all groups in the system</p>
+            {% else %}
+                <h1>Group Management</h1>
+                <p>Manage your group memberships</p>
+            {% endif %}
+        </div>
+        <div class="page-actions">
+            <div class="groups-stats">
+                <h3>Overview</h3>
+                <div class="stat-cards-header">
+                    <div class="stat-card-header">
+                        <span class="stat-number">{{ page_obj|length }}</span>
+                        <span class="stat-label">Showing</span>
+                    </div>
+                    <div class="stat-card-header">
+                        <span class="stat-number">{{ total_groups }}</span>
+                        <span class="stat-label">Total</span>
+                    </div>
+                    {% if is_admin_view %}
+                        <div class="stat-card-header">
+                            <span class="stat-number">0</span>
+                            <span class="stat-label">Pending</span>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="groups-content">
+        <div class="groups-main">
+            {% if is_admin_view %}
+                <div class="main-search-section">
+                    <form method="get" class="main-search-form">
+                        <div class="main-search-input-group">
+                            <div>
+                                <input type="text" 
+                                       name="search" 
+                                       placeholder="Search groups..." 
+                                       value="{{ search_query }}" 
+                                       class="main-search-input">
+                                <button type="submit" class="btn-main-search">Search</button>
+                                {% if search_query %}
+                                    <a href="?per_page={{ per_page }}" class="btn-main-clear">Clear</a>
+                                {% endif %}
+                            </div>
+                            <a href="{% url 'iot:create_group' %}" class="btn-add-user">Create Group</a>
+                        </div>
+                        {% if search_query %}
+                            <p class="main-search-info">Searching for "{{ search_query }}"</p>
+                        {% endif %}
+                    </form>
+                </div>
+            {% endif %}
+
+    {% if page_obj %}
+        <div class="groups-table-container">
+            <table class="groups-table">
+                <thead>
+                    <tr>
+                        <th>Group Name</th>
+                        <th>Description</th>
+                        {% if not is_admin_view %}<th>Role</th>{% endif %}
+                        <th>Members</th>
+                        <th>Devices</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for membership in page_obj %}
+                    <tr>
+                        {% if is_admin_view %}
+                            <!-- Admin view - membership is actually a group object -->
+                            <td class="group-name-cell">
+                                <div class="group-name-info">
+                                    <span class="group-name">{{ membership.name }}</span>
+                                </div>
+                            </td>
+                            <td class="group-description">
+                                {{ membership.description|default:"No description" }}
+                            </td>
+                            <td class="group-members">
+                                {{ membership.memberships.count }}
+                            </td>
+                            <td class="group-devices">
+                                {{ membership.devices.count }}
+                            </td>
+                            <td class="group-actions">
+                                <a href="{% url 'iot:group_devices' %}" class="btn-action">View Devices</a>
+                                <a href="{% url 'iot:create_device' %}?group_id={{ membership.id }}" class="btn-action">Add Device</a>
+                                <a href="{% url 'iot:update_group' membership.id %}" class="btn-action">Edit</a>
+                                <a href="{% url 'iot:delete_group' membership.id %}" class="btn-action btn-danger">Delete</a>
+                            </td>
+                        {% else %}
+                            <!-- Regular user view - membership is a GroupMembership object -->
+                            <td class="group-name-cell">
+                                <div class="group-name-info">
+                                    <span class="group-name">{{ membership.group.name }}</span>
+                                    {% if membership.group == selected_group %}
+                                        <span class="selected-badge">Current</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td class="group-description">
+                                {{ membership.group.description|default:"No description" }}
+                            </td>
+                            <td class="group-role">
+                                <span class="role-badge role-{{ membership.role }}">{{ membership.get_role_display }}</span>
+                            </td>
+                            <td class="group-members">
+                                {{ membership.group.memberships.count }}
+                            </td>
+                            <td class="group-devices">
+                                {{ membership.group.devices.count }}
+                            </td>
+                            <td class="group-actions">
+                                <a href="{% url 'iot:group_devices' %}" class="btn-action">View Devices</a>
+                                {% if membership.role == 'admin' %}
+                                    <a href="{% url 'iot:create_device' %}?group_id={{ membership.group.id }}" class="btn-action">Add Device</a>
+                                {% endif %}
+                            </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+            
+            <!-- Pagination Controls -->
+            <div class="pagination-container">
+                <div class="pagination-size-control">
+                    <form method="get" class="pagination-size-form">
+                        {% if search_query %}
+                            <input type="hidden" name="search" value="{{ search_query }}">
+                        {% endif %}
+                        <span class="page-info-text">Show:</span>
+                        <select name="per_page" id="per_page_bottom" class="pagination-size-select" onchange="this.form.submit()">
+                            <option value="5" {% if per_page == 5 %}selected{% endif %}>5</option>
+                            <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+                            <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
+                        </select>
+                        <span class="page-info-text">per page</span>
+                    </form>
+                </div>
+                
+                {% if page_obj.has_other_pages %}
+                <div class="pagination">
+                    {% if page_obj.has_previous %}
+                        <a href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}&per_page={{ per_page }}" class="page-link">First</a>
+                        <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}&per_page={{ per_page }}" class="page-link">Previous</a>
+                    {% endif %}
+                    
+                    <span class="page-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} ({{ page_obj.paginator.count }} total {% if is_admin_view %}groups{% else %}memberships{% endif %})</span>
+                    
+                    {% if page_obj.has_next %}
+                        <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}&per_page={{ per_page }}" class="page-link">Next</a>
+                        <a href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}&per_page={{ per_page }}" class="page-link">Last</a>
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="pagination">
+                    <span class="page-info">({{ page_obj.paginator.count }} total {% if is_admin_view %}groups{% else %}memberships{% endif %})</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% else %}
+        <div class="empty-state">
+            {% if search_query %}
+                <h3>No Groups Found</h3>
+                <p>No groups match your search "{{ search_query }}"</p>
+                <a href="?per_page={{ per_page }}" class="btn-secondary">Clear Search</a>
+            {% elif is_admin_view %}
+                <h3>No Groups in System</h3>
+                <p>There are no groups created yet in the system.</p>
+                <a href="{% url 'iot:create_group' %}" class="btn-primary">Create First Group</a>
+            {% else %}
+                <h3>No Groups Yet</h3>
+                <p>You haven't been assigned to any groups yet. Your registration request may still be pending review.</p>
+                <p>Please contact an administrator if you need access to a group.</p>
+            {% endif %}
+        </div>
+    {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #5f6368;
+}
+
+.empty-state h3 {
+    color: #202124;
+    margin-bottom: 16px;
+}
+
+/* Pagination Styles */
+.pagination-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 20px;
+    padding: 15px 0;
+    border-top: 1px solid #e9ecef;
+}
+
+.pagination {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.pagination-size-control {
+    display: flex;
+    align-items: center;
+}
+
+.pagination-size-form {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+}
+
+.page-info-text {
+    font-size: 14px;
+    color: #666;
+    margin: 0;
+}
+
+.pagination-size-select {
+    padding: 4px 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: white;
+    font-size: 14px;
+    color: #666;
+    cursor: pointer;
+    min-width: 50px;
+    margin: 0 2px;
+}
+
+.pagination-size-select:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.page-link {
+    color: #007bff;
+    text-decoration: none;
+    padding: 8px 12px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.page-link:hover {
+    background-color: #e9ecef;
+    border-color: #adb5bd;
+}
+
+.page-info {
+    color: #666;
+    font-size: 14px;
+    margin: 0 10px;
+}
+
+@media (max-width: 768px) {
+    .pagination-container {
+        justify-content: center;
+    }
+    
+    .pagination {
+        flex-direction: column;
+        gap: 15px;
+    }
+}
+
+/* Table Styles */
+.groups-table-container {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.groups-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.groups-table th {
+    background-color: #f8f9fa;
+    padding: 16px;
+    text-align: left;
+    font-weight: 600;
+    color: #495057;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.groups-table td {
+    padding: 16px;
+    border-bottom: 1px solid #dee2e6;
+    vertical-align: middle;
+}
+
+.groups-table tr:hover {
+    background-color: #f8f9fa;
+}
+
+.group-name-cell {
+    min-width: 200px;
+}
+
+.group-name {
+    font-weight: 600;
+    color: #212529;
+}
+
+.selected-badge {
+    background-color: #28a745;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    margin-left: 8px;
+}
+
+.role-badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.role-admin {
+    background-color: #dc3545;
+    color: white;
+}
+
+.role-member {
+    background-color: #6c757d;
+    color: white;
+}
+
+.group-actions {
+    white-space: nowrap;
+}
+
+.btn-action {
+    display: inline-block;
+    padding: 6px 12px;
+    margin-right: 4px;
+    background-color: #007bff;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 12px;
+    transition: background-color 0.2s;
+}
+
+.btn-action:hover {
+    background-color: #0056b3;
+}
+
+.btn-action.btn-danger {
+    background-color: #dc3545;
+}
+
+.btn-action.btn-danger:hover {
+    background-color: #c82333;
+}
+</style>
+{% endblock %}

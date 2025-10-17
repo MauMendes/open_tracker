@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}OpenTracker{% endblock %}</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    {% if user.is_authenticated %}
+        <nav class="navbar">
+            <div class="nav-container">
+                <div class="nav-brand">
+                    <a href="{% url 'myapp:index' %}">OpenTracker</a>
+                </div>
+                <div class="nav-links">
+                    <a href="{% url 'myapp:index' %}" class="nav-link">Home</a>
+                    {% if user.is_superuser or user.group_memberships.exists %}
+                        <a href="{% url 'iot:dashboard' %}" class="nav-link">Dashboard</a>
+                        <a href="{% url 'iot:group_devices' %}" class="nav-link">Devices</a>
+                        <a href="{% url 'iot:historical_data' %}" class="nav-link">Historical</a>
+                    {% endif %}
+                    {% if user.is_superuser %}
+                        <a href="{% url 'iot:create_group' %}" class="nav-link">Groups</a>
+                        <a href="{% url 'accounts:user_management' %}" class="nav-link">Users</a>
+                    {% endif %}
+                    <div class="nav-user">
+                        <span>{{ user.username }}</span>
+                        <a href="{% url 'accounts:logout' %}" class="nav-link logout">Logout</a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+    {% endif %}
+    
+    <div class="container">
+        {% block content %}
+        {% endblock %}
+    </div>
+</body>
+</html>
